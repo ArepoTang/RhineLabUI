@@ -50,7 +50,7 @@ export class WallpaperEffects {
     stage.addEventListener("pointerleave", reset);
     window.addEventListener("blur", reset);
     document.addEventListener("visibilitychange", reset);
-    stage.querySelectorAll<HTMLElement>(".brand, .system-nav, .system-footer > span, .system-footer > button, .wb-time, .wb-today, .wb-module, .wb-nav button, .archive-callout, .archive-counter, .column-navigation, .archive-hint, .detail-content, .back-button, .object-caption, .relay-heading, .relay-actions, .relay-entry").forEach(node => node.classList.add("frost-surface"));
+    stage.querySelectorAll<HTMLElement>(".brand, .system-nav, .system-footer > span, .system-footer > button, .wb-time, .wb-today, .wb-module, .wb-nav button, .archive-callout, .archive-counter, .column-navigation, .archive-hint, .detail-content, .back-button, .object-caption").forEach(node => node.classList.add("frost-surface"));
   }
   update(time: number, reduced: boolean, pointerParallax = !reduced) {
     const options = effectOptions(this.props);

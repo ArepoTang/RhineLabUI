@@ -7,18 +7,18 @@
 
 [data-dark-surface="true"] { color-scheme: dark; color: var(--theme-ink); background: var(--theme-paper); }
 [data-dark-surface="true"] :is(#viewport, #stage, .model-viewer, .boot-white) { background: var(--theme-paper); color: var(--theme-ink); }
-[data-dark-surface="true"] :is(.brand, .powered, .workbench, .system-nav, .system-footer, .archive-ui, .detail-ui, .terminal-modal, .relay-entry, .relay-hud, .relay-target) { color: var(--theme-ink); }
+[data-dark-surface="true"] :is(.brand, .powered, .workbench, .system-nav, .system-footer, .archive-ui, .detail-ui, .terminal-modal) { color: var(--theme-ink); }
 [data-dark-surface="true"] .scene-atmosphere { background: linear-gradient(180deg, var(--theme-paper), rgba(var(--theme-paper-rgb), .82) 11%, transparent 40%), linear-gradient(0deg, rgba(var(--theme-paper-rgb), .94), transparent 19%), radial-gradient(ellipse at 48% 48%, transparent 35%, rgba(var(--theme-paper-rgb), .38) 85%); }
 [data-dark-surface="true"] .boot-background { background: radial-gradient(ellipse at 51% 48%, var(--theme-panel), var(--theme-paper) 76%); }
 [data-dark-surface="true"] :is(.terminal-modal, .viewer-loading, .toast) { background: var(--theme-panel); color: var(--theme-ink); box-shadow: 0 26px 95px #0003; border-color: var(--theme-line); }
 [data-dark-surface="true"] .modal-backdrop { background: rgba(var(--theme-paper-rgb), .6); }
-[data-dark-surface="true"] :is(.wallpaper-settings-note, .quality-cycle, .wb-cover, .relay-actions button, .relay-target) { background: var(--theme-field); color: var(--theme-ink); border-color: var(--theme-line); }
+[data-dark-surface="true"] :is(.wallpaper-settings-note, .quality-cycle, .wb-cover) { background: var(--theme-field); color: var(--theme-ink); border-color: var(--theme-line); }
 [data-dark-surface="true"] :is(.wb-muted, .wb-media small, .wb-timer-label, .wb-nav button, .wb-task[aria-pressed="true"], .theme-settings span, .settings-intro, .settings-list label span, .audio-setting span, .settings-shortcuts, .modal-bottom, .detail-kicker, .detail-content p, .detail-content li, .detail-tabs button, .file-summary, .archive-hint, .viewer-help, .viewer-heading p, .viewer-state, .object-caption small, .result-row small) { color: var(--theme-muted); }
 [data-dark-surface="true"] :is(.wb-nav button[aria-pressed="true"], .detail-tabs button.active, .settings-list strong, .detail-content h2, .detail-content h3, .detail-content strong, .result-row, .quality-heading h3, .quality-label) { color: var(--theme-ink); }
-[data-dark-surface="true"] :is(.wb-storage, a, .workbench button:hover, .relay-entry:hover) { color: var(--theme-accent); }
-[data-dark-surface="true"] :is(.wb-kicker, .wb-today, .wb-title, .wb-task, .wb-check, .wb-timer-buttons button, .wb-settings, .wb-settings button, .theme-settings, .theme-choices button, .modal-top, .settings-list label, .settings-bottom, .settings-shortcuts, .detail-tabs, .result-header, .result-row, .quality-grid, .quality-heading, .quality-range, .viewer-parts p, .viewer-footer, .viewer-surface button, .relay-entry, .relay-actions button, .category-filters button) { border-color: var(--theme-line); }
-[data-dark-surface="true"] :is(.wb-rule, .callout-rule, .file-ticks button::before, .wb-nav button::before, .relay-time) { background: var(--theme-line); }
-[data-dark-surface="true"] :is(.wb-rule i, .powered i, .tab-indicator, .status-light, .relay-time i) { background: var(--theme-ink); }
+[data-dark-surface="true"] :is(.wb-storage, a, .workbench button:hover) { color: var(--theme-accent); }
+[data-dark-surface="true"] :is(.wb-kicker, .wb-today, .wb-title, .wb-task, .wb-check, .wb-timer-buttons button, .wb-settings, .wb-settings button, .theme-settings, .theme-choices button, .modal-top, .settings-list label, .settings-bottom, .settings-shortcuts, .detail-tabs, .result-header, .result-row, .quality-grid, .quality-heading, .quality-range, .viewer-parts p, .viewer-footer, .viewer-surface button, .category-filters button) { border-color: var(--theme-line); }
+[data-dark-surface="true"] :is(.wb-rule, .callout-rule, .file-ticks button::before, .wb-nav button::before) { background: var(--theme-line); }
+[data-dark-surface="true"] :is(.wb-rule i, .powered i, .tab-indicator, .status-light) { background: var(--theme-ink); }
 [data-dark-surface="true"] .wb-nav button[aria-pressed="true"]::before { background: var(--theme-ink); }
 [data-dark-surface="true"] .wb-nav button:hover::before { background: var(--theme-accent); }
 [data-dark-surface="true"] .system-footer button:hover { color: var(--theme-accent); }
@@ -33,8 +33,6 @@
 [data-dark-surface="true"] .motion-settings-head button[aria-pressed="true"] { background: var(--theme-ink); color: var(--theme-paper); border-color: var(--theme-ink); opacity: 1; }
 [data-dark-surface="true"] .motion-settings input:checked + .toggle { background: var(--theme-accent); }
 [data-dark-surface="true"] .motion-setting input:focus-visible + .toggle { outline-color: var(--theme-accent); }
-[data-dark-surface="true"] .relay-target:hover { background: var(--theme-ink); color: var(--theme-paper); }
-[data-dark-surface="true"] .relay-target { box-shadow: 0 0 0 5px rgba(var(--theme-paper-rgb), .35); }
 [data-dark-surface="true"] :is(.boot-logo, .welcome-logo) svg text { fill: currentColor; }
 [data-dark-surface="true"] .scan [stroke="#080a08"] { stroke: var(--theme-ink); }
 [data-dark-surface="true"] .scan [stroke="#fff"] { stroke: var(--theme-line); }

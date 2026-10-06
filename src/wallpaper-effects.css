@@ -15,10 +15,10 @@
 .wallpaper-background { position: absolute; inset: 0; opacity: 0; pointer-events: none; overflow: hidden; transition: opacity 650ms ease; }
 .wallpaper-background img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transition: opacity 650ms ease; }
 .wallpaper-background[data-reduced="true"] img { transition: none; }
-#stage:is([data-three-state="closing"], [data-three-state="off"], [data-three-state="loading"]) :is(.relay-entry, [data-action="model-viewer"], .inspection-overlay, .object-caption, #inspection-marks, #inspection-text, #hover-label) { visibility: hidden; pointer-events: none; }
+#stage:is([data-three-state="closing"], [data-three-state="off"], [data-three-state="loading"]) :is([data-action="model-viewer"], .inspection-overlay, .object-caption, #inspection-marks, #inspection-text, #hover-label) { visibility: hidden; pointer-events: none; }
 #stage:is([data-three-state="closing"], [data-three-state="loading"]) #three-scene { pointer-events: none; }
 [data-ui-frost="true"] .frost-surface { isolation: isolate; }
-.wb-time, .wb-today, .relay-heading, .relay-actions { position: relative; }
+.wb-time, .wb-today { position: relative; }
 .system-footer > .frost-surface { position: relative; }
 .frost-surface::after {
   content: "";
@@ -43,7 +43,6 @@
   backdrop-filter: none;
 }
 .system-footer .frost-surface::after { inset: -8px -12px; }
-.relay-actions.frost-surface::after { left: auto; width: 240px; }
 .reduce-surfaces .frost-surface::after { transition: none; }
 @media(max-width:700px) { [data-ui-frost="true"] .wb-module { position: relative; } }
 
@@ -70,10 +69,10 @@
 #stage[data-custom-wallpaper-visible="true"] .system-footer { color: var(--theme-ink, #242622); }
 #stage[data-custom-wallpaper-visible="true"] .system-footer .three-toggle[aria-pressed="false"] { opacity: 1; }
 
-#stage[data-custom-wallpaper-visible="true"] :is(.wb-nav button, .wb-task, .wb-muted, .wb-task-count, .wb-storage, .wb-media small, .wb-timer-label, .system-nav button, .relay-entry) {
+#stage[data-custom-wallpaper-visible="true"] :is(.wb-nav button, .wb-task, .wb-muted, .wb-task-count, .wb-storage, .wb-media small, .wb-timer-label, .system-nav button) {
   color: var(--theme-ink, #242622);
 }
-#stage[data-custom-wallpaper-visible="true"] :is(.wb-nav button, .wb-task, .system-nav button, .system-footer button, .relay-entry):hover {
+#stage[data-custom-wallpaper-visible="true"] :is(.wb-nav button, .wb-task, .system-nav button, .system-footer button):hover {
   color: var(--theme-ink, #242622);
 }
 #clock { display: inline-flex; align-items: baseline; font-variant-numeric: tabular-nums; white-space: nowrap; }
