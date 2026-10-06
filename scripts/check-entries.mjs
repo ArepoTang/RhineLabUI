@@ -205,3 +205,54 @@ test("40 个盒子正好铺满 5 列 × 8 行，行列可互相换算", () => {
   assert.equal(cellBox(5, 12), 0);
   assert.equal(cellBox(0, 20), 0);
 });
+
+// ---- 盒子 → 档案记录（详情页/阵列实际读的就是这些字段）-----------------------
+const { BOX_COLUMNS, applyArchiveSource, archiveColumns, boxRecords, records, columnFiles } = await import("../src/data.ts");
+
+test("40 个盒子永远是 40 条记录，空的也占位（每列必须恰好 8 个）", () => {
+  for (const count of [0, 1, 41, 1600]) {
+    const list = boxRecords(many(count));
+    assert.equal(list.length, BOX_COUNT);
+    for (let lane = 0; lane < 5; lane++)
+      assert.equal(list.filter((r) => r.category === BOX_COLUMNS[lane]).length, 8, `${count} 条时第 ${lane} 列不是 8 个`);
+  }
+  const empty = boxRecords([]);
+  assert.equal(empty[0].clearance, "RESTRICTED");
+  assert.match(empty[0].abstract, /还是空的/);
+  assert.equal(empty[0].findings.length, 0);
+});
+
+test("盒子记录带上详情页需要的字段：序号、条数区间、日期范围、逐条研究记录", () => {
+  const entries = many(41).map((entry, i) => ({
+    ...entry,
+    date: `2026-10-${String((i % 28) + 1).padStart(2, "0")}`,
+    time: i % 3 === 0 ? "09:30" : "",
+  }));
+  const [first, second] = boxRecords(entries);
+  assert.equal(first.id, "BOX-001");
+  assert.equal(first.en, "BOX 001");
+  assert.equal(first.title, "001 – 040");
+  assert.equal(first.date, "第 1 – 40 条");
+  assert.equal(first.department, "个人条目");
+  assert.match(first.abstract, /^共 40 条 · /);
+  assert.equal(first.findings.length, 40);
+  assert.match(first.findings[0], /月 \d+ 日/);
+  assert.equal(second.title, "041");
+  assert.equal(second.findings.length, 1);
+});
+
+test("盒子替换机制：records/archiveColumns/categories 原地改写，旧的引用不会失效", () => {
+  const before = records; // 模拟场景与详情页持有的引用
+  const beforeCategory = BOX_COLUMNS[0];
+  applyArchiveSource("entries", many(9));
+  assert.equal(before, records, "数组引用必须保持不变");
+  assert.equal(before.length, BOX_COUNT);
+  assert.equal(before[0].id, "BOX-001");
+  assert.equal(before[8].category, BOX_COLUMNS[1]);
+  assert.equal(columnFiles(0).length, 8);
+  assert.equal(columnFiles(1)[0], 8); // 第 9 个盒子是第 1 列的第一格
+  applyArchiveSource("builtin");
+  assert.equal(records[0].id, "X-001");
+  assert.equal(archiveColumns[0], "工程研究");
+  assert.notEqual(beforeCategory, undefined);
+});
