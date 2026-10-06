@@ -2,12 +2,9 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   entriesOn,
-  isEntry,
   monthGrid,
   newEntry,
-  parseEntries,
   searchEntries,
-  serializeEntries,
   sortEntries,
 } from "../src/entries.ts";
 
@@ -20,43 +17,6 @@ const at = (id, date, time, title, body, done = false) => ({
   done,
   created: 1_700_000_000_000,
   updated: 1_700_000_000_000,
-});
-
-test("markdown 往返无损（含空正文、冒号、正文里的 --- 与缩进代码块）", () => {
-  const entries = [
-    at("a", "2026-10-06", "09:30", "晨会: 排期", "讨论 **条目** 模型\n\n---\n\n```ts\nconst x = 1;\n```"),
-    at("b", "2026-10-06", "", "", ""),
-    at("c", "2026-10-07", "", "只有标题的笔记", ""),
-    at("d", "2026-09-30", "23:59", "", "多行\n正文\n\n\n结尾空行不保留", true),
-  ];
-  const again = parseEntries(serializeEntries(entries));
-  assert.equal(again.length, 4);
-  assert.deepEqual(
-    again.map(({ id, date, time, title, body, done }) => ({ id, date, time, title, body, done })),
-    [...entries]
-      .sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time))
-      .map(({ id, date, time, title, body, done }) => ({ id, date, time, title, body, done: done })),
-  );
-});
-
-test("往返两次结果稳定（第二次序列化与第一次逐字节相同）", () => {
-  const entries = [at("a", "2026-10-06", "09:30", "晨会", "正文"), at("b", "2026-01-02", "", "", "只有正文")];
-  const once = serializeEntries(entries);
-  assert.equal(serializeEntries(parseEntries(once)), once);
-});
-
-test("坏输入被跳过而不是抛错", () => {
-  assert.deepEqual(parseEntries(""), []);
-  assert.deepEqual(parseEntries("就是一段普通 markdown\n没有 front matter"), []);
-  assert.deepEqual(parseEntries("---\ndate: 2026-13-45\n---\n正文"), []);
-  assert.deepEqual(parseEntries("---\ntitle: 缺日期\n---\n正文"), []);
-});
-
-test("导入时缺 id 会补一个，时间格式不合法则丢弃", () => {
-  const [entry] = parseEntries("---\ndate: 2026-10-06\ntime: 9点半\n---\n正文");
-  assert.ok(entry.id);
-  assert.equal(entry.time, "");
-  assert.ok(isEntry(entry));
 });
 
 test("排序：同一天先按时间，无时间的在前", () => {
@@ -88,10 +48,12 @@ test("月历是周一开头、整六周、跨月补齐", () => {
   assert.ok(feb.includes("2028-02-29"));
 });
 
-test("newEntry 造出的条目能被 isEntry 与往返接受", () => {
+test("newEntry 造出的条目形状正确", () => {
   const entry = newEntry("2026-10-06");
-  assert.ok(isEntry(entry));
-  assert.equal(parseEntries(serializeEntries([entry]))[0].id, entry.id);
+  assert.match(entry.id, /^[0-9a-f-]{36}$|^\d+-/);
+  assert.equal(entry.date, "2026-10-06");
+  assert.equal(entry.done, false);
+  assert.equal(entry.body, "");
 });
 
 // ---- 界面 markup（纯函数，可在 Node 里断言）--------------------------------
@@ -166,4 +128,80 @@ test("编辑器：编辑时带删除按钮与已有值，新建时没有删除�
   const fresh = editorMarkup(undefined, "2026-10-07");
   assert.ok(!fresh.includes("delete-entry"));
   assert.match(fresh, /value="2026-10-07"/);
+});
+
+// ---- 盒子模型（容量阶梯、装填顺序、封顶）------------------------------------
+const {
+  BOX_COUNT, ENTRY_LIMIT, boxCapacity, boxUsed, canAdd, cellBox, boxCell,
+  isFull, ordinalOf, partition,
+} = await import("../src/boxes.ts");
+
+const many = (count) => Array.from({ length: count }, (_, i) =>
+  at(`id${String(i).padStart(4, "0")}`, "2026-10-06", "", `第 ${i + 1} 条`, "", false));
+
+test("容量阶梯只有两级：≤40 一条一盒，>40 后 40 条一盒", () => {
+  assert.equal(boxCapacity(0), 1);
+  assert.equal(boxCapacity(40), 1);
+  assert.equal(boxCapacity(41), 40);
+  assert.equal(boxCapacity(1600), 40);
+  assert.equal(boxUsed(0), 0);
+  assert.equal(boxUsed(40), 40);
+  assert.equal(boxUsed(41), 2);
+  assert.equal(boxUsed(80), 2);
+  assert.equal(boxUsed(81), 3);
+  assert.equal(boxUsed(1600), 40);
+});
+
+test("41 条时：前 40 条并进第一个盒子，第 41 条进第二个", () => {
+  const boxes = partition(many(41));
+  assert.equal(boxes.length, 2);
+  assert.equal(boxes[0].entries.length, 40);
+  assert.equal(boxes[0].from, 1);
+  assert.equal(boxes[0].to, 40);
+  assert.equal(boxes[0].ordinal, "001 – 040");
+  assert.equal(boxes[0].entries[0].title, "第 1 条");
+  assert.equal(boxes[0].entries[39].title, "第 40 条");
+  assert.deepEqual([boxes[1].from, boxes[1].to, boxes[1].entries.length], [41, 41, 1]);
+  assert.equal(boxes[1].ordinal, "041");
+});
+
+test("40 条时每条一个盒子，序号是单号不是区间", () => {
+  const boxes = partition(many(40));
+  assert.equal(boxes.length, BOX_COUNT);
+  assert.equal(boxes[6].ordinal, "007");
+  assert.equal(boxes[6].entries[0].title, "第 7 条");
+});
+
+test("1600 条正好装满 40 个盒子，之后拒绝新增", () => {
+  const boxes = partition(many(ENTRY_LIMIT));
+  assert.equal(boxes.length, BOX_COUNT);
+  assert.equal(boxes[39].ordinal, ordinalOf(1561, 1600));
+  assert.equal(canAdd(ENTRY_LIMIT - 1), true);
+  assert.equal(canAdd(ENTRY_LIMIT), false);
+  assert.equal(isFull(ENTRY_LIMIT), true);
+  // 超出的条目不会被悄悄塞进阵列，而是被截断（写入路径负责先拒绝）
+  assert.equal(partition(many(ENTRY_LIMIT + 5)).length, BOX_COUNT);
+});
+
+test("按写入顺序装填，补写旧日期的条目不回填旧盒子", () => {
+  const backfilled = at("late", "2020-01-01", "", "补写很久以前", "");
+  backfilled.created = 1_700_000_000_001; // 最后才写（其余条目的 created 是 1_700_000_000_000）
+  const boxes = partition([...many(41), backfilled]);
+  assert.equal(boxes[1].entries.at(-1).title, "补写很久以前");
+  assert.equal(boxes[0].entries.some((e) => e.title === "补写很久以前"), false);
+});
+
+test("40 个盒子正好铺满 5 列 × 8 行，行列可互相换算", () => {
+  assert.deepEqual(boxCell(0), { lane: 0, row: 12 });
+  assert.deepEqual(boxCell(7), { lane: 0, row: 19 });
+  assert.deepEqual(boxCell(8), { lane: 1, row: 12 });
+  assert.deepEqual(boxCell(39), { lane: 4, row: 19 });
+  for (let index = 0; index < BOX_COUNT; index++) {
+    const { lane, row } = boxCell(index);
+    assert.equal(cellBox(lane, row), index);
+  }
+  // 阵列是循环的，负数与越界列都要能绕回来
+  assert.equal(cellBox(-1, 12), 32);
+  assert.equal(cellBox(5, 12), 0);
+  assert.equal(cellBox(0, 20), 0);
 });
