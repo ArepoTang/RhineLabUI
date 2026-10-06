@@ -11,6 +11,7 @@ import "@kitlangton/rolling-number/styles.css";
 import "./style.css";
 import "./quality-settings.css";
 import "./entries.css";
+import { EntriesBoard, boardBodyMarkup, editorMarkup, entriesMarkup } from "./entries-ui";
 import "./responsive.css";
 import { viewportLayout, openingLayout } from "./viewport-layout";
 import { assetUrl } from "./asset-url";
@@ -66,7 +67,7 @@ $("#stage").innerHTML = `
   <div class="scene-atmosphere archive-atmosphere"></div>
   <div id="boot-background" class="boot-background"><svg viewBox="0 0 1920 1080" preserveAspectRatio="none"><g fill="none" stroke="#fff" stroke-width="3"><path d="M-210 705C-45 705 182 704 247 567C337 377 99 306 4 435S27 680 169 631C309 584 227 314 279 111S568-113 568-113"/><path d="M1560-80C1374 114 1671 168 1601 323S1371 367 1431 480S1692 666 1559 787S1329 886 1498 1130"/><circle cx="1450" cy="648" r="346"/><circle cx="1450" cy="648" r="348"/></g></svg></div>
   <header class="brand">${brandHeading}</header>
-  <nav class="system-nav" aria-label="系统导航">
+  <nav class="system-nav" aria-label="系统导航"><button data-action="entries" aria-label="日历与笔记" title="日历与笔记"><span class="nav-glyph">▤</span> ENTRIES</button>
     <button data-action="search"><span class="nav-glyph">⌕</span> ARCHIVE INDEX <span class="key">/</span></button>
     <button data-action="saved" aria-label="查看收藏档案" title="收藏档案">＋ SAVED <span id="saved-count">00</span></button>
     <button class="settings-button" data-action="settings" aria-label="系统设置" title="系统设置"><span class="settings-glyph" aria-hidden="true">◷</span><span class="settings-label">设置</span></button>
@@ -114,12 +115,13 @@ let mode: Mode = "boot",
   bootStart = 0,
   lastStep = "",
   ready = false;
-let modal: "search" | "saved" | "settings" | "entry" | null = null,
+let modal: "search" | "saved" | "settings" | "entries" | "entry" | null = null,
   searchQuery = "",
   filter = "全部档案";
 // 弹窗打开时正在编辑的条目；null 表示新建，日期由 editingDate 决定。
 let editingEntryId: string | null = null,
   editingDate = dayKey(new Date());
+const board = new EntriesBoard();
 let activeTab = "overview";
 const reviewParams = new URLSearchParams(location.search);
 let frozenTime =
@@ -632,7 +634,7 @@ function renderModal() {
   if (!modal) return;
   modalTransition?.dispose();
   $("#modal-root").innerHTML =
-    `<div class="modal-backdrop"><section class="terminal-modal ${modal === "settings" ? "settings-modal" : modal === "entry" ? "entry-modal" : ""}" role="dialog" aria-modal="true" aria-label="${modal === "settings" ? "系统设置" : modal === "entry" ? "条目" : modal === "saved" ? "收藏档案" : "档案检索"}"><div class="modal-top"><span>RHINE LAB / ${modal === "settings" ? "SYSTEM PREFERENCES" : modal === "entry" ? "PERSONAL ENTRY" : "ARCHIVE DIRECTORY"}</span><button data-action="close-modal" aria-label="关闭窗口">CLOSE <span>×</span></button></div>${modal === "settings" ? settingsMarkup() : modal === "entry" ? entryEditorMarkup() : `<h2>${modal === "saved" ? "SAVED ARCHIVES" : "ARCHIVE INDEX"}<small>${modal === "saved" ? "收藏档案" : "内部档案检索"}</small></h2><div class="search-field"><span>⌕</span><input id="archive-search" type="search" autocomplete="off" placeholder="输入档案编号、名称或科室" aria-label="检索档案"/><span class="key">ESC</span></div><div class="category-filters">${categories.map((c, i) => `<button data-filter="${escapeHtml(c)}" class="${i === 0 ? "active" : ""}">${escapeHtml(c)}</button>`).join("")}</div><div class="result-header"><span>FILE / 档案</span><span>DEPARTMENT / 科室</span><span>ACCESS</span></div><div id="search-results" class="search-results"></div><div class="modal-bottom"><span id="result-count"></span><span>INTERNAL DATABASE <i>●</i> CONNECTED</span></div>`}</section></div>`;
+    `<div class="modal-backdrop"><section class="terminal-modal ${modal === "settings" ? "settings-modal" : modal === "entry" ? "entry-modal" : modal === "entries" ? "entries-modal" : ""}" role="dialog" aria-modal="true" aria-label="${modal === "settings" ? "系统设置" : modal === "entries" ? "日历与笔记" : modal === "entry" ? "条目" : modal === "saved" ? "收藏档案" : "档案检索"}"><div class="modal-top"><span>RHINE LAB / ${modal === "settings" ? "SYSTEM PREFERENCES" : modal === "entries" ? "PERSONAL SCHEDULE" : modal === "entry" ? "PERSONAL ENTRY" : "ARCHIVE DIRECTORY"}</span><button data-action="close-modal" aria-label="关闭窗口">CLOSE <span>×</span></button></div>${modal === "settings" ? settingsMarkup() : modal === "entries" ? entriesMarkup(board) : modal === "entry" ? editorMarkup(editingEntryId ? board.entry(editingEntryId) : undefined, editingDate) : `<h2>${modal === "saved" ? "SAVED ARCHIVES" : "ARCHIVE INDEX"}<small>${modal === "saved" ? "收藏档案" : "内部档案检索"}</small></h2><div class="search-field"><span>⌕</span><input id="archive-search" type="search" autocomplete="off" placeholder="输入档案编号、名称或科室" aria-label="检索档案"/><span class="key">ESC</span></div><div class="category-filters">${categories.map((c, i) => `<button data-filter="${escapeHtml(c)}" class="${i === 0 ? "active" : ""}">${escapeHtml(c)}</button>`).join("")}</div><div class="result-header"><span>FILE / 档案</span><span>DEPARTMENT / 科室</span><span>ACCESS</span></div><div id="search-results" class="search-results"></div><div class="modal-bottom"><span id="result-count"></span><span>INTERNAL DATABASE <i>●</i> CONNECTED</span></div>`}</section></div>`;
   const backdrop = $(".modal-backdrop");
   backdrop.hidden = true;
   modalTransition = new SurfaceTransition(backdrop, $(".terminal-modal"));
@@ -688,15 +690,18 @@ function motionPreferenceNoteMarkup() {
   const allEnabled = Object.values(prefs.motion).every(Boolean);
   return `<div id="motion-preference-note" class="motion-preference-note"><p>${motionSummary(prefs.motion)}</p><span>预设：${preset === "full" ? "完整动画" : preset === "reduced" ? "减少动画" : "自定义"} · 选择会保存在本站</span>${allEnabled ? "" : '<button data-action="enable-motion">启用完整动画并重播 ↻</button>'}</div>`;
 }
-function entryEditorMarkup() {
-  const entry = editingEntryId ? workbench?.entry(editingEntryId) : undefined;
-  const date = entry?.date ?? editingDate;
-  return `<h2>${entry ? "EDIT ENTRY" : "NEW ENTRY"}<small>${entry ? "编辑条目" : "新建条目"}</small></h2><p class="settings-intro">${entry ? "修改后保存即写入本机存储" : "条目可以只是笔记，也可以写成日程"}</p><div class="entry-fields"><label class="entry-field"><span>日期</span><input type="date" id="entry-date" value="${date}"/></label><label class="entry-field"><span>时间（可选）</span><input type="time" id="entry-time" value="${entry?.time ?? ""}"/></label><label class="entry-field"><span>标题（可选）</span><input type="text" id="entry-title" maxlength="80" value="${escapeHtml(entry?.title ?? "")}"/></label><label class="entry-field entry-body-field"><span>正文（Markdown）</span><textarea id="entry-body" rows="10">${escapeHtml(entry?.body ?? "")}</textarea></label></div><div class="entry-actions">${entry ? '<button data-action="delete-entry" class="entry-delete">删除</button>' : ""}<button data-action="save-entry" class="entry-save">保存 <span>↗</span></button></div><div class="modal-bottom"><span>MARKDOWN · 本机存储</span><span>POWERED BY RHINE LAB</span></div>`;
-}
 function openEntryEditor(date: string, id?: string) {
   editingEntryId = id ?? null;
   editingDate = date;
   openModal("entry");
+}
+/** 日历是编辑器唯一入口，保存/删除后回到日历。 */
+function reopenEntries() {
+  void board.load().then(() => openModal("entries"));
+}
+function renderEntryBody() {
+  const body = document.querySelector("#entry-body");
+  if (body) body.innerHTML = boardBodyMarkup(board);
 }
 function editorValues(): { date: string; time: string; title: string; body: string } | null {
   const date = document.querySelector<HTMLInputElement>("#entry-date")?.value ?? "";
@@ -705,7 +710,7 @@ function editorValues(): { date: string; time: string; title: string; body: stri
     date,
     time: document.querySelector<HTMLInputElement>("#entry-time")?.value ?? "",
     title: document.querySelector<HTMLInputElement>("#entry-title")?.value.trim() ?? "",
-    body: (document.querySelector<HTMLTextAreaElement>("#entry-body")?.value ?? "").replace(/\s+$/, ""),
+    body: (document.querySelector<HTMLTextAreaElement>("#entry-body-field")?.value ?? "").replace(/\s+$/, ""),
   };
 }
 function settingsMarkup() {
@@ -713,6 +718,8 @@ function settingsMarkup() {
 }
 
 document.addEventListener("input", (e) => {
+  const quick = e.target as HTMLInputElement;
+  if (quick.id === "entry-search") { board.query = quick.value; renderEntryBody(); return; }
   const slider = e.target as HTMLInputElement;
   if (slider.dataset.quality) {
     const output = document.querySelector<HTMLOutputElement>(`[data-quality-output="${slider.dataset.quality}"]`);
@@ -817,22 +824,29 @@ document.addEventListener("click", (e) => {
     const id = editingEntryId;
     if (action === "delete-entry") {
       if (!id) return;
-      void removeEntry(id).then(() => { void workbench?.reload(); closeModal(() => notify("条目已删除")); });
+      void removeEntry(id).then(() => closeModal(() => { notify("条目已删除"); reopenEntries(); }));
       return;
     }
     const values = editorValues();
     if (!values) return;
     if (!values.title && !values.body) { notify("空条目没有保存"); return; }
-    const existing = id ? workbench?.entry(id) : undefined;
+    const existing = id ? board.entry(id) : undefined;
     const entry: Entry = existing ? { ...existing } : newEntry(values.date);
     entry.date = values.date;
     entry.time = values.time;
     entry.title = values.title;
     entry.body = values.body;
     entry.updated = Date.now();
-    void saveEntry(entry).then(() => { void workbench?.reload(); closeModal(() => notify(existing ? "条目已更新" : "条目已保存")); });
+    void saveEntry(entry).then(() => closeModal(() => { notify(existing ? "条目已更新" : "条目已保存"); reopenEntries(); }));
     return;
   }
+  if (action === "entries") { reopenEntries(); return; }
+  if (el.dataset.entryDay !== undefined) { board.selectDay(el.dataset.entryDay); renderEntryBody(); return; }
+  if (el.dataset.entryMonth !== undefined) { board.shiftMonth(Number(el.dataset.entryMonth)); renderEntryBody(); return; }
+  if (el.dataset.entryToday !== undefined) { board.selectDay(dayKey(new Date())); renderEntryBody(); return; }
+  if (el.dataset.entryNew !== undefined) { openEntryEditor(el.dataset.entryNew); return; }
+  if (el.dataset.entryOpen !== undefined) { openEntryEditor(board.entry(el.dataset.entryOpen)?.date ?? board.selectedDay, el.dataset.entryOpen); return; }
+  if (el.dataset.entryToggle !== undefined) { void board.toggle(el.dataset.entryToggle).then(renderEntryBody); return; }
   if (action === "toggle-three") { void toggleThree(); return; }
   if (action === "sound-preview") audio.play("confirm");
   if (action === "skip") {
@@ -1313,7 +1327,7 @@ if (isWallpaper) {
     if (ready && mode !== "boot") setMode("archive");
   }, lane => {
     if (ready && !modal) select(columnMemory[lane]);
-  }, openEntryEditor);
+  });
   workbench.setMotion(prefs.motion);
   wallpaperEffects = new WallpaperEffects($("#stage"), () => scene);
   document.addEventListener("click", event => {

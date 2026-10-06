@@ -93,3 +93,76 @@ test("newEntry 造出的条目能被 isEntry 与往返接受", () => {
   assert.ok(isEntry(entry));
   assert.equal(parseEntries(serializeEntries([entry]))[0].id, entry.id);
 });
+
+// ---- 界面 markup（纯函数，可在 Node 里断言）--------------------------------
+const { boardBodyMarkup, editorMarkup, entriesMarkup } = await import("../src/entries-ui.ts");
+
+const board = (over = {}) => ({
+  entries: [],
+  selectedDay: "2026-10-06",
+  monthAnchor: new Date(2026, 9, 1),
+  query: "",
+  error: "",
+  ...over,
+});
+
+test("月历：42 格、周一开头、跨月压暗、今天与选中日被标记", () => {
+  const html = boardBodyMarkup(board());
+  assert.equal((html.match(/data-entry-day=/g) ?? []).length, 42);
+  assert.match(html, /data-entry-day="2026-09-28"/); // 十月一日前的那个周一
+  assert.match(html, /data-outside="true"/);
+  assert.match(html, /aria-pressed="true"/); // 选中日
+  assert.match(html, /10 月 6 日 · 周二/);
+});
+
+test("月历：条目数量显示在格子里，当天列表按时间排序", () => {
+  const html = boardBodyMarkup(board({
+    entries: [
+      at("b", "2026-10-06", "18:00", "", "晚上"),
+      at("a", "2026-10-06", "", "全天", "白天"),
+      at("c", "2026-10-12", "", "别天", "不该出现在 10-06 列表里"),
+    ],
+  }));
+  assert.match(html, /data-entry-day="2026-10-12"[^>]*><span>12<\/span><i>1<\/i>/);
+  assert.ok(html.indexOf("全天") < html.indexOf("晚上"));
+  assert.equal((html.match(/data-entry-open=/g) ?? []).length, 2);
+});
+
+test("没有条目时给出空状态，而不是空白", () => {
+  assert.match(boardBodyMarkup(board()), /这一天还没有条目/);
+});
+
+test("条目文本被转义，标题与正文里的 HTML 不会执行", () => {
+  const html = boardBodyMarkup(board({
+    entries: [at("x", "2026-10-06", "", '<img src=x onerror="boom()">', "<script>boom()</script>")],
+  }));
+  assert.ok(!html.includes("<img"), "标题未转义");
+  assert.ok(!html.includes("<script>"), "正文未转义");
+});
+
+test("搜索态：命中列表跨日期显示，并标出结果条数", () => {
+  const html = boardBodyMarkup(board({
+    query: "排期",
+    entries: [at("a", "2026-10-06", "", "晨会", "排期"), at("b", "2026-11-02", "", "买菜", "西红柿")],
+  }));
+  assert.match(html, /搜索 · 排期/);
+  assert.match(html, /1 条/);
+  assert.match(html, /2026-10-06/);
+  assert.ok(!html.includes("data-entry-day"), "搜索态不该再画月历");
+});
+
+test("日历外观带上搜索框与存储错误提示", () => {
+  assert.match(entriesMarkup(board()), /id="entry-search"/);
+  assert.match(entriesMarkup(board({ error: "存储坏了" })), /存储坏了/);
+});
+
+test("编辑器：编辑时带删除按钮与已有值，新建时没有删除按钮", () => {
+  const editing = editorMarkup(at("a", "2026-10-06", "09:30", "晨会", "正文"), "2026-10-06");
+  assert.match(editing, /data-action="delete-entry"/);
+  assert.match(editing, /value="晨会"/);
+  assert.match(editing, /value="09:30"/);
+  assert.match(editing, />正文</);
+  const fresh = editorMarkup(undefined, "2026-10-07");
+  assert.ok(!fresh.includes("delete-entry"));
+  assert.match(fresh, /value="2026-10-07"/);
+});
