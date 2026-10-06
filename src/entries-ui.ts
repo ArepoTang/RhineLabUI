@@ -34,6 +34,12 @@ const WEEKDAYS = ["一", "二", "三", "四", "五", "六", "日"];
 const escape = (text: string) =>
   text.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 
+/** 格子本身只显示日期，条数用一个小圆点表示；无障碍名称里保留条数。 */
+const dayMeta = (day: string, count: number) => {
+  const weekday = (new Date(`${day}T00:00:00`).getDay() + 6) % 7;
+  return `${Number(day.slice(5, 7))} 月 ${Number(day.slice(8))} 日 周${WEEKDAYS[weekday]}${count ? `，${count} 条` : ""}`;
+};
+
 const dayLabel = (day: string) => {
   const [, month, date] = day.split("-");
   const weekday = new Date(`${day}T00:00:00`).getDay();
@@ -63,7 +69,7 @@ export function boardBodyMarkup(board: BoardView): string {
   const days = monthGrid(year, month)
     .map((day) => {
       const count = counts.get(day) ?? 0;
-      return `<button class="entry-day" data-entry-day="${day}" aria-pressed="${day === board.selectedDay}"${day.startsWith(prefix) ? "" : ' data-outside="true"'}${day === today ? ' data-today="true"' : ""}><span>${Number(day.slice(8))}</span>${count ? `<i>${count > 9 ? "9+" : count}</i>` : ""}</button>`;
+      return `<button class="entry-day" data-entry-day="${day}" aria-pressed="${day === board.selectedDay}" aria-label="${dayMeta(day, count)}"${day.startsWith(prefix) ? "" : ' data-outside="true"'}${day === today ? ' data-today="true"' : ""}><span>${Number(day.slice(8))}</span>${count ? '<i aria-hidden="true"></i>' : ""}</button>`;
     })
     .join("");
   const list = entriesOn(board.entries, board.selectedDay);

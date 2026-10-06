@@ -123,7 +123,8 @@ test("月历：条目数量显示在格子里，当天列表按时间排序", ()
       at("c", "2026-10-12", "", "别天", "不该出现在 10-06 列表里"),
     ],
   }));
-  assert.match(html, /data-entry-day="2026-10-12"[^>]*><span>12<\/span><i>1<\/i>/);
+  assert.match(html, /data-entry-day="2026-10-12"[^>]*aria-label="10 月 12 日 周一，1 条"[^>]*><span>12<\/span><i aria-hidden="true"><\/i>/);
+  assert.ok(!/<i>\d/.test(html), "格子里的条数不该再是数字");
   assert.ok(html.indexOf("全天") < html.indexOf("晚上"));
   assert.equal((html.match(/data-entry-open=/g) ?? []).length, 2);
 });

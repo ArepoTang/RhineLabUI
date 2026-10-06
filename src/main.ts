@@ -67,7 +67,7 @@ $("#stage").innerHTML = `
   <div class="scene-atmosphere archive-atmosphere"></div>
   <div id="boot-background" class="boot-background"><svg viewBox="0 0 1920 1080" preserveAspectRatio="none"><g fill="none" stroke="#fff" stroke-width="3"><path d="M-210 705C-45 705 182 704 247 567C337 377 99 306 4 435S27 680 169 631C309 584 227 314 279 111S568-113 568-113"/><path d="M1560-80C1374 114 1671 168 1601 323S1371 367 1431 480S1692 666 1559 787S1329 886 1498 1130"/><circle cx="1450" cy="648" r="346"/><circle cx="1450" cy="648" r="348"/></g></svg></div>
   <header class="brand">${brandHeading}</header>
-  <nav class="system-nav" aria-label="系统导航"><button data-action="entries" aria-label="日历与笔记" title="日历与笔记"><span class="nav-glyph">▤</span> ENTRIES</button>
+  <nav class="system-nav" aria-label="系统导航"><button class="entries-button" data-action="entries" aria-label="日历与笔记" title="日历与笔记"><svg class="entries-icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4.5" width="18" height="16"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4"/><path d="M8 13h.01M12 13h.01M16 13h.01M8 16.5h.01M12 16.5h.01M16 16.5h.01" stroke-width="2.2" stroke-linecap="round"/></svg></button>
     <button data-action="search"><span class="nav-glyph">⌕</span> ARCHIVE INDEX <span class="key">/</span></button>
     <button data-action="saved" aria-label="查看收藏档案" title="收藏档案">＋ SAVED <span id="saved-count">00</span></button>
     <button class="settings-button" data-action="settings" aria-label="系统设置" title="系统设置"><span class="settings-glyph" aria-hidden="true">◷</span><span class="settings-label">设置</span></button>
@@ -160,7 +160,7 @@ function readLocal<T>(key: string, fallback: T): T {
   }
 }
 const saved = new Set<string>(readLocal<string[]>("rhine-saved", []));
-const storedPrefs = readLocal<Partial<{ sound: boolean; music: boolean; soundVolume: number; musicVolume: number; reduced: boolean; quality: boolean; rendering: RenderQuality; superPerformance: boolean; colorTheme: "light" | "dark"; motion: StoredMotion; motionPreset: MotionPreset }>>("rhine-settings", {});
+const storedPrefs = readLocal<Partial<{ sound: boolean; music: boolean; soundVolume: number; musicVolume: number; reduced: boolean; quality: boolean; rendering: RenderQuality; superPerformance: boolean; threeOff: boolean; colorTheme: "light" | "dark"; motion: StoredMotion; motionPreset: MotionPreset }>>("rhine-settings", {});
 const initialMotion = createMotionPreferences(
   storedPrefs.motion,
   storedPrefs.reduced ?? (storedPrefs.motion === undefined
@@ -169,6 +169,7 @@ const initialMotion = createMotionPreferences(
 );
 const initialMotionPreset = motionPresetFor(initialMotion);
 const prefs = {
+  threeOff: storedPrefs.threeOff ?? false,
   sound: storedPrefs.sound ?? true,
   music: storedPrefs.music ?? storedPrefs.sound ?? true,
   soundVolume: storedPrefs.soundVolume ?? .55,
@@ -634,7 +635,7 @@ function renderModal() {
   if (!modal) return;
   modalTransition?.dispose();
   $("#modal-root").innerHTML =
-    `<div class="modal-backdrop"><section class="terminal-modal ${modal === "settings" ? "settings-modal" : modal === "entry" ? "entry-modal" : modal === "entries" ? "entries-modal" : ""}" role="dialog" aria-modal="true" aria-label="${modal === "settings" ? "系统设置" : modal === "entries" ? "日历与笔记" : modal === "entry" ? "条目" : modal === "saved" ? "收藏档案" : "档案检索"}"><div class="modal-top"><span>RHINE LAB / ${modal === "settings" ? "SYSTEM PREFERENCES" : modal === "entries" ? "PERSONAL SCHEDULE" : modal === "entry" ? "PERSONAL ENTRY" : "ARCHIVE DIRECTORY"}</span><button data-action="close-modal" aria-label="关闭窗口">CLOSE <span>×</span></button></div>${modal === "settings" ? settingsMarkup() : modal === "entries" ? entriesMarkup(board) : modal === "entry" ? editorMarkup(editingEntryId ? board.entry(editingEntryId) : undefined, editingDate) : `<h2>${modal === "saved" ? "SAVED ARCHIVES" : "ARCHIVE INDEX"}<small>${modal === "saved" ? "收藏档案" : "内部档案检索"}</small></h2><div class="search-field"><span>⌕</span><input id="archive-search" type="search" autocomplete="off" placeholder="输入档案编号、名称或科室" aria-label="检索档案"/><span class="key">ESC</span></div><div class="category-filters">${categories.map((c, i) => `<button data-filter="${escapeHtml(c)}" class="${i === 0 ? "active" : ""}">${escapeHtml(c)}</button>`).join("")}</div><div class="result-header"><span>FILE / 档案</span><span>DEPARTMENT / 科室</span><span>ACCESS</span></div><div id="search-results" class="search-results"></div><div class="modal-bottom"><span id="result-count"></span><span>INTERNAL DATABASE <i>●</i> CONNECTED</span></div>`}</section></div>`;
+    `<div class="modal-backdrop${modal === "entries" ? " entries-backdrop" : ""}"><section class="terminal-modal ${modal === "settings" ? "settings-modal" : modal === "entry" ? "entry-modal" : modal === "entries" ? "entries-modal" : ""}" role="dialog" aria-modal="true" aria-label="${modal === "settings" ? "系统设置" : modal === "entries" ? "日历与笔记" : modal === "entry" ? "条目" : modal === "saved" ? "收藏档案" : "档案检索"}"><div class="modal-top"><span>RHINE LAB / ${modal === "settings" ? "SYSTEM PREFERENCES" : modal === "entries" ? "PERSONAL SCHEDULE" : modal === "entry" ? "PERSONAL ENTRY" : "ARCHIVE DIRECTORY"}</span><button data-action="close-modal" aria-label="关闭窗口">CLOSE <span>×</span></button></div>${modal === "settings" ? settingsMarkup() : modal === "entries" ? entriesMarkup(board) : modal === "entry" ? editorMarkup(editingEntryId ? board.entry(editingEntryId) : undefined, editingDate) : `<h2>${modal === "saved" ? "SAVED ARCHIVES" : "ARCHIVE INDEX"}<small>${modal === "saved" ? "收藏档案" : "内部档案检索"}</small></h2><div class="search-field"><span>⌕</span><input id="archive-search" type="search" autocomplete="off" placeholder="输入档案编号、名称或科室" aria-label="检索档案"/><span class="key">ESC</span></div><div class="category-filters">${categories.map((c, i) => `<button data-filter="${escapeHtml(c)}" class="${i === 0 ? "active" : ""}">${escapeHtml(c)}</button>`).join("")}</div><div class="result-header"><span>FILE / 档案</span><span>DEPARTMENT / 科室</span><span>ACCESS</span></div><div id="search-results" class="search-results"></div><div class="modal-bottom"><span id="result-count"></span><span>INTERNAL DATABASE <i>●</i> CONNECTED</span></div>`}</section></div>`;
   const backdrop = $(".modal-backdrop");
   backdrop.hidden = true;
   modalTransition = new SurfaceTransition(backdrop, $(".terminal-modal"));
@@ -714,7 +715,7 @@ function editorValues(): { date: string; time: string; title: string; body: stri
   };
 }
 function settingsMarkup() {
-  return `<h2>SYSTEM SETTINGS<small>终端偏好设置</small></h2><p class="settings-intro">JOYCE MOORE <span>·</span> SESSION AUTHORIZED</p>${isWallpaper ? '<p class="wallpaper-settings-note">每次启动都会读取 Wallpaper Engine 中的设置。在此修改仅对当前运行生效，无法持久保存；如需保留，请在 Wallpaper Engine 的壁纸属性中调整。</p>' : ""}<div class="settings-list">${themeSettingsMarkup(prefs.colorTheme === "dark")}${!isWallpaper ? `<label><div><strong>SUPER PERFORMANCE</strong><span>降低三维画质和渲染分辨率，保留完整动效；关闭后恢复原画质</span></div><input type="checkbox" data-pref="superPerformance" ${prefs.superPerformance ? "checked" : ""}/><i class="toggle"></i></label>` : ""}${workbench?.settingsMarkup() ?? ""}${audioSettingsMarkup(prefs)}</div>${motionPreferenceNoteMarkup()}${motionSettingsMarkup(prefs.motion, prefs.motionPreset)}${qualityMarkup(prefs.rendering)}${pwaSettingsMarkup()}<div class="settings-shortcuts">${isWallpaper ? '<span>DESKTOP CONTROLS</span><p>拖动阵列或点击界面按钮浏览档案。桌面模式下，方向键与滚轮可能无法传入壁纸。</p>' : '<span>KEYBOARD CONTROLS</span><p><kbd>←</kbd><kbd>→</kbd> 切列 <kbd>↑</kbd><kbd>↓</kbd> 选档 <kbd>ENTER</kbd> 读取 <kbd>/</kbd> 检索 <kbd>ESC</kbd> 返回</p>'}</div><div class="settings-bottom">${!isWallpaper && document.fullscreenEnabled ? '<button data-action="fullscreen">FULLSCREEN <span>↗</span></button>' : ''}<button data-action="restart">REINITIALIZE SYSTEM <span>↻</span></button></div><div class="modal-bottom"><span>ANALYSIS OS / 1.0 · 使用 MiSans 字体（小米） <a href="${assetUrl("fonts/MiSans-license.pdf")}" target="_blank" rel="noopener">字体许可</a></span><span>POWERED BY RHINE LAB</span></div>`;
+  return `<h2>SYSTEM SETTINGS<small>终端偏好设置</small></h2><p class="settings-intro">JOYCE MOORE <span>·</span> SESSION AUTHORIZED</p>${isWallpaper ? '<p class="wallpaper-settings-note">每次启动都会读取 Wallpaper Engine 中的设置。在此修改仅对当前运行生效，无法持久保存；如需保留，请在 Wallpaper Engine 的壁纸属性中调整。</p>' : ""}<div class="settings-list">${themeSettingsMarkup(prefs.colorTheme === "dark")}${!isWallpaper ? `<label><div><strong>SUPER PERFORMANCE</strong><span>降低三维画质和渲染分辨率，保留完整动效；关闭后恢复原画质</span></div><input type="checkbox" data-pref="superPerformance" ${prefs.superPerformance ? "checked" : ""}/><i class="toggle"></i></label>` : ""}${workbench?.settingsMarkup() ?? ""}${audioSettingsMarkup(prefs)}<label><div><strong>三维档案</strong><span>关闭后卸载三维模型，只保留平面界面；重新开启会重新载入模型</span></div><input type="checkbox" id="three-pref" ${threeState === "on" ? "checked" : ""}/><i class="toggle"></i></label></div>${motionPreferenceNoteMarkup()}${motionSettingsMarkup(prefs.motion, prefs.motionPreset)}${qualityMarkup(prefs.rendering)}${pwaSettingsMarkup()}<div class="settings-shortcuts">${isWallpaper ? '<span>DESKTOP CONTROLS</span><p>拖动阵列或点击界面按钮浏览档案。桌面模式下，方向键与滚轮可能无法传入壁纸。</p>' : '<span>KEYBOARD CONTROLS</span><p><kbd>←</kbd><kbd>→</kbd> 切列 <kbd>↑</kbd><kbd>↓</kbd> 选档 <kbd>ENTER</kbd> 读取 <kbd>/</kbd> 检索 <kbd>ESC</kbd> 返回</p>'}</div><div class="settings-bottom">${!isWallpaper && document.fullscreenEnabled ? '<button data-action="fullscreen">FULLSCREEN <span>↗</span></button>' : ''}<button data-action="restart">REINITIALIZE SYSTEM <span>↻</span></button></div><div class="modal-bottom"><span>ANALYSIS OS / 1.0 · 使用 MiSans 字体（小米） <a href="${assetUrl("fonts/MiSans-license.pdf")}" target="_blank" rel="noopener">字体许可</a></span><span>POWERED BY RHINE LAB</span></div>`;
 }
 
 document.addEventListener("input", (e) => {
@@ -738,6 +739,7 @@ document.addEventListener("input", (e) => {
 });
 document.addEventListener("change", (e) => {
   const el = e.target as HTMLInputElement;
+  if (el.id === "three-pref") { void toggleThree(); return; }
   if (el.id === "quality-preset" && Object.hasOwn(qualityPresets, el.value)) {
     prefs.rendering = { ...qualityPresets[el.value as QualityPreset] };
     savePrefs();
@@ -1136,6 +1138,8 @@ function syncThreeButton() {
   button.disabled = threeState === "loading";
   button.setAttribute("aria-pressed", String(threeState === "on"));
   button.title = threeState === "off" ? "重新载入三维模型" : threeState === "closing" ? "取消关闭，恢复三维画面" : "卸载三维模型，保留 2D 界面";
+  const pref = document.querySelector<HTMLInputElement>("#three-pref");
+  if (pref) { pref.checked = threeState === "on"; pref.disabled = threeState === "loading" || threeState === "closing"; }
 }
 function releaseThree() {
   if (!scene) return;
@@ -1148,13 +1152,13 @@ function releaseThree() {
     $("#detail-content").inert = false;
     documentDecryption.reset($("#detail-content"), true);
   }
-  threeState = "off"; syncThreeButton();
+  threeState = "off"; prefs.threeOff = true; syncThreeButton();
   $("#hover-label").hidden = true;
   delete $("#three-scene").dataset.renderQuality;
   updateQualitySummary();
 }
 async function toggleThree() {
-  if (!isWallpaper || !ready || threeState === "loading") return;
+  if (!ready || threeState === "loading") return;
   if (threeState === "closing") {
     scene?.setPresentationVisible(true, !motionActive("surfaceTransitions"));
     threeState = "on"; syncThreeButton(); return;
@@ -1180,11 +1184,11 @@ async function toggleThree() {
     scene.setArchiveCoverage(wallpaperHost()?.properties.archivecoverage?.value === "extra");
     savePrefs();
     scene.setPresentationVisible(true, !motionActive("surfaceTransitions"));
-    threeState = "on"; syncThreeButton();
+    threeState = "on"; prefs.threeOff = false; syncThreeButton();
   } catch (error) {
     next?.dispose(); scene = undefined;
     threeState = "off"; syncThreeButton();
-    notify("三维模型载入失败，请点击 3D 关闭重试。");
+    notify("三维模型载入失败，可在设置中重新开启。");
     console.error(error);
   }
 }
@@ -1192,7 +1196,8 @@ async function toggleThree() {
 async function start() {
   try {
     if (isWallpaper) await window.rhineWallpaperPropertiesReady;
-    if (!isWallpaper || wallpaperHost()?.properties.load3donstartup?.value !== false) {
+    const wantsThree = isWallpaper ? wallpaperHost()?.properties.load3donstartup?.value !== false : !prefs.threeOff;
+    if (wantsThree) {
       scene = new ArchiveScene($("#three-scene"));
       scene.setTheme(prefs.colorTheme === "dark", true);
       scene.setArchiveCoverage(wallpaperHost()?.properties.archivecoverage?.value === "extra");
