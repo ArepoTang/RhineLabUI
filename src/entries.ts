@@ -6,9 +6,9 @@ import { dayKey, parseTarget } from "./workbench-state.ts";
  * 日历与笔记是同一份数据 —— 只写正文就是笔记，填了标题或时间就是日程。
  * 分成两份会立刻带来"这条笔记算不算那天的日程"的分类问题，所以不拆。
  *
- * 存储以 IndexedDB 为真源；Markdown 是显式的导入/导出格式，不是运行时依赖。
- * 原因是 Android 的 Chrome 与 WebView 都没有 showDirectoryPicker()，
- * 纯网页版拿不到一个可读写的目录，以文件为真源就必须写原生桥。
+ * 存储就是本机 IndexedDB，没有导出格式：Android 的 Chrome 与 WebView 都没有
+ * showDirectoryPicker()，纯网页拿不到可读写的目录，以文件为真源就必须写原生桥。
+ * 代价是清应用数据或换机会丢，需要备份时再加序列化（格式决定很便宜）。
  */
 export type Entry = {
   id: string;
@@ -87,66 +87,6 @@ export const isEntry = (value: unknown): value is Entry => {
     typeof entry.title === "string"
   );
 };
-
-// ---- Markdown 往返 ---------------------------------------------------------
-// 每段是 YAML front matter + 正文，段落之间用独占一行的 `===` 分隔。
-// `---` 在正文里可以自由使用（它只在段落开头的 front matter 里是分隔线）；
-// 代价是正文里不能有独占一行的 `===` —— 这是这个格式唯一的保留串。
-
-const FENCE = "---";
-const SEPARATOR = "===";
-
-export function serializeEntries(entries: Entry[]): string {
-  return sortEntries(entries)
-    .map((entry) => {
-      const head = [
-        FENCE,
-        `id: ${entry.id}`,
-        `date: ${entry.date}`,
-        `time: ${entry.time}`,
-        `title: ${entry.title}`,
-        `done: ${entry.done}`,
-        `created: ${entry.created}`,
-        `updated: ${entry.updated}`,
-        FENCE,
-      ];
-      const body = entry.body.trim();
-      return `${head.join("\n")}\n${body ? `\n${body}\n` : ""}`;
-    })
-    .join(`\n${SEPARATOR}\n\n`)
-    .concat("\n");
-}
-
-export function parseEntries(text: string): Entry[] {
-  const out: Entry[] = [];
-  const chunks = text.replace(/\r\n/g, "\n").split(new RegExp(`^${SEPARATOR}$`, "m"));
-  for (const chunk of chunks) {
-    // 分隔符后面跟着一个空行，trim 掉再找 front matter。
-    const lines = chunk.replace(/^\n+/, "").split("\n");
-    if (lines[0]?.trim() !== FENCE) continue;
-    const end = lines.findIndex((line, index) => index > 0 && line.trim() === FENCE);
-    if (end < 0) continue;
-    const fields: Record<string, string> = {};
-    for (const line of lines.slice(1, end)) {
-      const split = line.indexOf(":");
-      if (split > 0) fields[line.slice(0, split).trim()] = line.slice(split + 1).trim();
-    }
-    const body = lines.slice(end + 1).join("\n").trim();
-    if (!isDayKey(fields.date)) continue;
-    const now = Date.now();
-    out.push({
-      id: fields.id || newEntry(fields.date, now).id,
-      date: fields.date,
-      time: /^\d{2}:\d{2}$/.test(fields.time ?? "") ? fields.time : "",
-      title: fields.title ?? "",
-      body,
-      done: fields.done === "true",
-      created: Number(fields.created) || now,
-      updated: Number(fields.updated) || now,
-    });
-  }
-  return sortEntries(out);
-}
 
 // ---- IndexedDB ------------------------------------------------------------
 const DB_NAME = "rhine-terminal";
