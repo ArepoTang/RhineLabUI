@@ -79,3 +79,28 @@
 .wb-media > div:last-child { display: flex; flex-direction: column; align-items: flex-start; }
 #stage[data-custom-wallpaper-visible="true"] .wb-media small,
 #stage[data-custom-wallpaper-visible="true"] .wb-content > .wb-muted { color: var(--theme-ink, #242622); }
+
+/* 条目：日程与笔记共用一种行，勾选与编辑分开两个按钮（按钮不能嵌套）。 */
+.wb-entries { margin-top: 4px; }
+.wb-entry-row { display: flex; align-items: stretch; gap: 6px; }
+.wb-entry-row + .wb-entry-row { border-top: 1px solid #bdb8ad; }
+.wb-entry-row .wb-task { border-top: 0; }
+.wb-entry-label { display: block; min-width: 0; }
+.wb-entry-preview { display: block; margin-top: 3px; font-size: 12px; color: #77756d; }
+.wb-entry-time { flex: 0 0 auto; margin-left: auto; font-size: 12px; color: #77756d; font-variant-numeric: tabular-nums; }
+.wb-entry-edit { flex: 0 0 auto; padding: 12px 4px; font-size: 13px; color: #a6a49c; }
+.wb-task-new { color: #77756d; }
+/* 月历：周一开头，六行固定高度，跨月日期压暗。 */
+.wb-cal-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.wb-cal-head strong { font-size: 14px; font-weight: 500; }
+.wb-cal-head button { width: 46px; min-height: 34px; border: 1px solid #bdb8ad; font-size: 13px; }
+.wb-cal-week, .wb-cal { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+.wb-cal-week { margin: 12px 0 4px; font-size: 10px; color: #77756d; }
+.wb-cal-week span { text-align: center; }
+.wb-day { position: relative; min-height: 42px; border: 1px solid transparent; font-size: 13px; font-variant-numeric: tabular-nums; }
+.wb-day[data-outside="true"] { color: #b3aea5; }
+.wb-day[data-today="true"] { border-color: #a6a49c; }
+.wb-day[aria-pressed="true"] { background: #080a08; color: #ece9e4; }
+.wb-day i { position: absolute; left: 0; right: 0; bottom: 4px; font-size: 9px; font-style: normal; opacity: .6; }
+/* 带小字预览的行里，标题 span 不再是 :last-child，杠掉要单独指定。 */
+.wb-entry-row .wb-task[aria-pressed="true"] .wb-entry-label { text-decoration: line-through; }

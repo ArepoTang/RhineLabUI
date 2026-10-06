@@ -10,6 +10,7 @@ import { superPerformanceQuality, wallpaperQuality } from "./wallpaper-quality";
 import "@kitlangton/rolling-number/styles.css";
 import "./style.css";
 import "./quality-settings.css";
+import "./entries.css";
 import "./responsive.css";
 import { viewportLayout, openingLayout } from "./viewport-layout";
 import { assetUrl } from "./asset-url";
@@ -43,6 +44,8 @@ import {
   type StoredMotion,
 } from "./motion-preferences";
 import { StartupGate } from "./startup";
+import { dayKey } from "./workbench-state";
+import { isDayKey, newEntry, removeEntry, saveEntry, type Entry } from "./entries";
 import { isWallpaper, wallpaperHost, wallpaperFrame, type WallpaperProperties } from "./wallpaper";
 import "./startup.css";
 import "./wallpaper.css";
@@ -111,9 +114,12 @@ let mode: Mode = "boot",
   bootStart = 0,
   lastStep = "",
   ready = false;
-let modal: "search" | "saved" | "settings" | null = null,
+let modal: "search" | "saved" | "settings" | "entry" | null = null,
   searchQuery = "",
   filter = "全部档案";
+// 弹窗打开时正在编辑的条目；null 表示新建，日期由 editingDate 决定。
+let editingEntryId: string | null = null,
+  editingDate = dayKey(new Date());
 let activeTab = "overview";
 const reviewParams = new URLSearchParams(location.search);
 let frozenTime =
@@ -626,13 +632,13 @@ function renderModal() {
   if (!modal) return;
   modalTransition?.dispose();
   $("#modal-root").innerHTML =
-    `<div class="modal-backdrop"><section class="terminal-modal ${modal === "settings" ? "settings-modal" : ""}" role="dialog" aria-modal="true" aria-label="${modal === "settings" ? "系统设置" : modal === "saved" ? "收藏档案" : "档案检索"}"><div class="modal-top"><span>RHINE LAB / ${modal === "settings" ? "SYSTEM PREFERENCES" : "ARCHIVE DIRECTORY"}</span><button data-action="close-modal" aria-label="关闭窗口">CLOSE <span>×</span></button></div>${modal === "settings" ? settingsMarkup() : `<h2>${modal === "saved" ? "SAVED ARCHIVES" : "ARCHIVE INDEX"}<small>${modal === "saved" ? "收藏档案" : "内部档案检索"}</small></h2><div class="search-field"><span>⌕</span><input id="archive-search" type="search" autocomplete="off" placeholder="输入档案编号、名称或科室" aria-label="检索档案"/><span class="key">ESC</span></div><div class="category-filters">${categories.map((c, i) => `<button data-filter="${escapeHtml(c)}" class="${i === 0 ? "active" : ""}">${escapeHtml(c)}</button>`).join("")}</div><div class="result-header"><span>FILE / 档案</span><span>DEPARTMENT / 科室</span><span>ACCESS</span></div><div id="search-results" class="search-results"></div><div class="modal-bottom"><span id="result-count"></span><span>INTERNAL DATABASE <i>●</i> CONNECTED</span></div>`}</section></div>`;
+    `<div class="modal-backdrop"><section class="terminal-modal ${modal === "settings" ? "settings-modal" : modal === "entry" ? "entry-modal" : ""}" role="dialog" aria-modal="true" aria-label="${modal === "settings" ? "系统设置" : modal === "entry" ? "条目" : modal === "saved" ? "收藏档案" : "档案检索"}"><div class="modal-top"><span>RHINE LAB / ${modal === "settings" ? "SYSTEM PREFERENCES" : modal === "entry" ? "PERSONAL ENTRY" : "ARCHIVE DIRECTORY"}</span><button data-action="close-modal" aria-label="关闭窗口">CLOSE <span>×</span></button></div>${modal === "settings" ? settingsMarkup() : modal === "entry" ? entryEditorMarkup() : `<h2>${modal === "saved" ? "SAVED ARCHIVES" : "ARCHIVE INDEX"}<small>${modal === "saved" ? "收藏档案" : "内部档案检索"}</small></h2><div class="search-field"><span>⌕</span><input id="archive-search" type="search" autocomplete="off" placeholder="输入档案编号、名称或科室" aria-label="检索档案"/><span class="key">ESC</span></div><div class="category-filters">${categories.map((c, i) => `<button data-filter="${escapeHtml(c)}" class="${i === 0 ? "active" : ""}">${escapeHtml(c)}</button>`).join("")}</div><div class="result-header"><span>FILE / 档案</span><span>DEPARTMENT / 科室</span><span>ACCESS</span></div><div id="search-results" class="search-results"></div><div class="modal-bottom"><span id="result-count"></span><span>INTERNAL DATABASE <i>●</i> CONNECTED</span></div>`}</section></div>`;
   const backdrop = $(".modal-backdrop");
   backdrop.hidden = true;
   modalTransition = new SurfaceTransition(backdrop, $(".terminal-modal"));
   modalTransition.show(!motionActive("surfaceTransitions"));
   if (modal === "settings") updateQualitySummary();
-  if (modal !== "settings") {
+  if (modal === "search" || modal === "saved") {
     renderResults();
     requestAnimationFrame(() => {
       if (backdrop.isConnected && !modalClosing) $("#archive-search").focus();
@@ -681,6 +687,26 @@ function motionPreferenceNoteMarkup() {
   const preset = prefs.motionPreset;
   const allEnabled = Object.values(prefs.motion).every(Boolean);
   return `<div id="motion-preference-note" class="motion-preference-note"><p>${motionSummary(prefs.motion)}</p><span>预设：${preset === "full" ? "完整动画" : preset === "reduced" ? "减少动画" : "自定义"} · 选择会保存在本站</span>${allEnabled ? "" : '<button data-action="enable-motion">启用完整动画并重播 ↻</button>'}</div>`;
+}
+function entryEditorMarkup() {
+  const entry = editingEntryId ? workbench?.entry(editingEntryId) : undefined;
+  const date = entry?.date ?? editingDate;
+  return `<h2>${entry ? "EDIT ENTRY" : "NEW ENTRY"}<small>${entry ? "编辑条目" : "新建条目"}</small></h2><p class="settings-intro">${entry ? "修改后保存即写入本机存储" : "条目可以只是笔记，也可以写成日程"}</p><div class="entry-fields"><label class="entry-field"><span>日期</span><input type="date" id="entry-date" value="${date}"/></label><label class="entry-field"><span>时间（可选）</span><input type="time" id="entry-time" value="${entry?.time ?? ""}"/></label><label class="entry-field"><span>标题（可选）</span><input type="text" id="entry-title" maxlength="80" value="${escapeHtml(entry?.title ?? "")}"/></label><label class="entry-field entry-body-field"><span>正文（Markdown）</span><textarea id="entry-body" rows="10">${escapeHtml(entry?.body ?? "")}</textarea></label></div><div class="entry-actions">${entry ? '<button data-action="delete-entry" class="entry-delete">删除</button>' : ""}<button data-action="save-entry" class="entry-save">保存 <span>↗</span></button></div><div class="modal-bottom"><span>MARKDOWN · 本机存储</span><span>POWERED BY RHINE LAB</span></div>`;
+}
+function openEntryEditor(date: string, id?: string) {
+  editingEntryId = id ?? null;
+  editingDate = date;
+  openModal("entry");
+}
+function editorValues(): { date: string; time: string; title: string; body: string } | null {
+  const date = document.querySelector<HTMLInputElement>("#entry-date")?.value ?? "";
+  if (!isDayKey(date)) { notify("日期无效，没有保存"); return null; }
+  return {
+    date,
+    time: document.querySelector<HTMLInputElement>("#entry-time")?.value ?? "",
+    title: document.querySelector<HTMLInputElement>("#entry-title")?.value.trim() ?? "",
+    body: (document.querySelector<HTMLTextAreaElement>("#entry-body")?.value ?? "").replace(/\s+$/, ""),
+  };
 }
 function settingsMarkup() {
   return `<h2>SYSTEM SETTINGS<small>终端偏好设置</small></h2><p class="settings-intro">JOYCE MOORE <span>·</span> SESSION AUTHORIZED</p>${isWallpaper ? '<p class="wallpaper-settings-note">每次启动都会读取 Wallpaper Engine 中的设置。在此修改仅对当前运行生效，无法持久保存；如需保留，请在 Wallpaper Engine 的壁纸属性中调整。</p>' : ""}<div class="settings-list">${themeSettingsMarkup(prefs.colorTheme === "dark")}${!isWallpaper ? `<label><div><strong>SUPER PERFORMANCE</strong><span>降低三维画质和渲染分辨率，保留完整动效；关闭后恢复原画质</span></div><input type="checkbox" data-pref="superPerformance" ${prefs.superPerformance ? "checked" : ""}/><i class="toggle"></i></label>` : ""}${workbench?.settingsMarkup() ?? ""}${audioSettingsMarkup(prefs)}</div>${motionPreferenceNoteMarkup()}${motionSettingsMarkup(prefs.motion, prefs.motionPreset)}${qualityMarkup(prefs.rendering)}${pwaSettingsMarkup()}<div class="settings-shortcuts">${isWallpaper ? '<span>DESKTOP CONTROLS</span><p>拖动阵列或点击界面按钮浏览档案。桌面模式下，方向键与滚轮可能无法传入壁纸。</p>' : '<span>KEYBOARD CONTROLS</span><p><kbd>←</kbd><kbd>→</kbd> 切列 <kbd>↑</kbd><kbd>↓</kbd> 选档 <kbd>ENTER</kbd> 读取 <kbd>/</kbd> 检索 <kbd>ESC</kbd> 返回</p>'}</div><div class="settings-bottom">${!isWallpaper && document.fullscreenEnabled ? '<button data-action="fullscreen">FULLSCREEN <span>↗</span></button>' : ''}<button data-action="restart">REINITIALIZE SYSTEM <span>↻</span></button></div><div class="modal-bottom"><span>ANALYSIS OS / 1.0 · 使用 MiSans 字体（小米） <a href="${assetUrl("fonts/MiSans-license.pdf")}" target="_blank" rel="noopener">字体许可</a></span><span>POWERED BY RHINE LAB</span></div>`;
@@ -787,6 +813,26 @@ document.addEventListener("click", (e) => {
     return;
   }
   const action = el.dataset.action;
+  if (action === "save-entry" || action === "delete-entry") {
+    const id = editingEntryId;
+    if (action === "delete-entry") {
+      if (!id) return;
+      void removeEntry(id).then(() => { void workbench?.reload(); closeModal(() => notify("条目已删除")); });
+      return;
+    }
+    const values = editorValues();
+    if (!values) return;
+    if (!values.title && !values.body) { notify("空条目没有保存"); return; }
+    const existing = id ? workbench?.entry(id) : undefined;
+    const entry: Entry = existing ? { ...existing } : newEntry(values.date);
+    entry.date = values.date;
+    entry.time = values.time;
+    entry.title = values.title;
+    entry.body = values.body;
+    entry.updated = Date.now();
+    void saveEntry(entry).then(() => { void workbench?.reload(); closeModal(() => notify(existing ? "条目已更新" : "条目已保存")); });
+    return;
+  }
   if (action === "toggle-three") { void toggleThree(); return; }
   if (action === "sound-preview") audio.play("confirm");
   if (action === "skip") {
@@ -1267,7 +1313,7 @@ if (isWallpaper) {
     if (ready && mode !== "boot") setMode("archive");
   }, lane => {
     if (ready && !modal) select(columnMemory[lane]);
-  });
+  }, openEntryEditor);
   workbench.setMotion(prefs.motion);
   wallpaperEffects = new WallpaperEffects($("#stage"), () => scene);
   document.addEventListener("click", event => {

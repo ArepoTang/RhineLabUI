@@ -1,0 +1,13 @@
+/* 条目编辑弹窗。复用终端的纸色与 1px 描边，不引入圆角与阴影。 */
+.entry-modal { max-width: 720px; }
+.entry-fields { display: grid; gap: 14px; padding-top: 4px; }
+.entry-field { display: grid; gap: 6px; font-size: 12px; color: #77756d; }
+.entry-field input,
+.entry-field textarea { width: 100%; padding: 10px 12px; font: inherit; font-size: 14px; color: #080a08; background: #ece9e4; border: 1px solid #bdb8ad; }
+.entry-field textarea { min-height: 160px; resize: vertical; line-height: 1.7; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.entry-actions { display: flex; gap: 10px; margin-top: 18px; }
+.entry-actions button { min-height: 42px; padding: 0 18px; border: 1px solid #a6a49c; font-size: 13px; }
+.entry-save { margin-left: auto; color: #ece9e4; background: #080a08; border-color: #080a08; }
+.entry-delete { color: #9b4a3f; }
+[data-dark-surface="true"] .entry-field input,
+[data-dark-surface="true"] .entry-field textarea { color: var(--theme-ink); background: var(--theme-field); border-color: var(--theme-line); }
