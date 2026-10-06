@@ -248,7 +248,14 @@ const loading = $("#loading");
 $("#viewport").append(loading);
 $("#stage").inert = true;
 $(".mobile-entry").inert = true;
-const entry = !isWallpaper && !reviewEntry && (prefs.sound || prefs.music) ? new StartupGate({
+/**
+ * APK 宿主标记：MainActivity 在 START_URL 上挂 ?host=apk。
+ * 我们的 WebView 已经设了 setMediaPlaybackRequiresUserGesture(false)，
+ * 所以那次"点击进入"只是为了浏览器自动播放策略而存在的补丁，在 APK 里是纯障碍。
+ * 载入遮罩本身保留（冷启动时总得有东西盖着）。
+ */
+const hostApk = new URLSearchParams(location.search).get("host") === "apk";
+const entry = !isWallpaper && !hostApk && !reviewEntry && (prefs.sound || prefs.music) ? new StartupGate({
   root: loading,
   unlock: () => audio.unlock(),
   cancel: () => audio.cancelEntry(),
@@ -1236,8 +1243,8 @@ async function start() {
     select(0);
     if (entry) entry.ready();
     else {
-      if (isWallpaper) {
-        // CEF allows automatic audio; never block the visual on audio policy or decoding.
+      if (isWallpaper || hostApk) {
+        // CEF 与我们的 WebView 都允许自动播放：直接解锁，别让音频策略挡住画面。
         await Promise.race([audio.unlock(), new Promise(resolve => setTimeout(resolve, 3000))]);
       }
       completeStartup(false);
