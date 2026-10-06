@@ -71,3 +71,10 @@
 [data-dark-surface="true"] .entry-open small,
 [data-dark-surface="true"] .entry-empty,
 [data-dark-surface="true"] .entry-week { border-color: var(--theme-line); color: var(--theme-muted); }
+
+/* 盒子详情页里的条目列表：点一条进编辑器（复用 entry-open 的既有事件） */
+.box-entries { display: flex; flex-direction: column; }
+.box-entries button { display: flex; align-items: baseline; gap: 10px; padding: 12px 0; text-align: left; border-top: 1px solid #bdb8ad; font-size: 14px; }
+.box-entries button span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.box-entries button i { color: #a6a49c; font-style: normal; }
+.box-empty { font-size: 12px; line-height: 1.9; color: #77756d; }

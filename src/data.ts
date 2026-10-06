@@ -14,6 +14,8 @@ export interface ArchiveRecord {
   abstract: string;
   findings: string[];
   source: string;
+  /** 个人条目盒子才有：条目 id（与 findings 一一对应），用来点击进编辑器。 */
+  box?: { from: number; to: number; entryIds: string[] };
 }
 
 // 必须是副本：records 会被原地清空重填，共用引用会把源数组一起清掉。
@@ -70,6 +72,7 @@ export function boxRecords(entries: Entry[]): ArchiveRecord[] {
       abstract: `共 ${ordered.length} 条 · ${shortDay(days[0])} – ${shortDay(days[days.length - 1])}`,
       findings: ordered.map((entry) => `${shortDay(entry.date)}${entry.time ? ` ${entry.time}` : ""} · ${entryTitle(entry)}`),
       source: "",
+      box: { from: box.from, to: box.to, entryIds: ordered.map((entry) => entry.id) },
     };
   });
 }
