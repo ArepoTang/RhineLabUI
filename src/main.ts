@@ -48,10 +48,8 @@ import "./startup.css";
 import "./wallpaper.css";
 import { Workbench } from "./workbench";
 let workbench: Workbench | undefined;
-import { ArchivePlayground } from "./archive-playground";
 import { ARRAY_OPENING_END, openingShowsDetail } from "./wallpaper-opening";
 import { paintTheme, themeSettingsMarkup } from "./theme-ui";
-let playground: ArchivePlayground | undefined;
 import { WallpaperEffects } from "./wallpaper-effects";
 import { WallpaperBackground } from "./wallpaper-background";
 let wallpaperEffects: WallpaperEffects | undefined;
@@ -228,8 +226,7 @@ const rollingTitles = [selectionTitle, columnTitle, hoverTitle, categoryTitle, c
 const selectedCode = createRollingNumber($("#selected-code"), codeOptions);
 const hoverCode = createRollingNumber($("#hover-code"), codeOptions);
 const audio = new TerminalAudio();
-let musicSuppressed = false;
-function configureAudio() { audio.configure({ ...prefs, music: prefs.music && !musicSuppressed }); }
+function configureAudio() { audio.configure({ ...prefs, music: prefs.music }); }
 configureAudio();
 const reviewEntry = reviewParams.has("scene") || reviewParams.has("time") || reviewParams.get("review") === "1";
 let started = false;
@@ -856,11 +853,6 @@ document.addEventListener("click", (e) => {
 document.addEventListener("keydown", (e) => {
   if (!started) return;
   if (viewer?.isOpen) return;
-  if (playground?.active && !modal) {
-    if (e.key === "Escape") { e.preventDefault(); playground.stop(); }
-    else if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Enter", "/"].includes(e.key) && !(e.target instanceof HTMLButtonElement)) e.preventDefault();
-    return;
-  }
   if (modalClosing) {
     e.preventDefault();
     return;
@@ -1005,7 +997,6 @@ function frame(ms: number) {
   const theme = scene?.themeAmount ?? (prefs.colorTheme === "dark" ? 1 : 0);
   paintTheme(theme);
   viewer?.setTheme(theme);
-  playground?.tick(time);
   const cinema =
     mode === "boot" && ready
       ? bootFrame(frozenTime ?? time - bootStart)
@@ -1015,7 +1006,6 @@ function frame(ms: number) {
   if (!viewer?.isOpen && (!cinema || cinema.time >= 21.9)) scene?.update(time, cinema);
   viewer?.update(time);
   if (threeState === "closing" && scene?.presentationHidden) releaseThree();
-  playground?.position();
   if (scene && mode === "detail") {
     documentDecryption.update(time, scene.decryptionFrame, !motionActive("documentReveal"));
     $("#detail-content").style.opacity = String(scene.detailVisibility);
@@ -1110,7 +1100,6 @@ async function toggleThree() {
     threeState = "on"; syncThreeButton(); return;
   }
   if (scene) {
-    playground?.stop();
     threeState = "closing"; syncThreeButton();
     scene.setPresentationVisible(false, !motionActive("surfaceTransitions"));
     if (!motionActive("surfaceTransitions")) releaseThree();
@@ -1280,9 +1269,6 @@ if (isWallpaper) {
     if (ready && !modal) select(columnMemory[lane]);
   });
   workbench.setMotion(prefs.motion);
-  playground = new ArchivePlayground($("#stage"), () => scene,
-    () => ({ enabled: !!workbench?.enabled && mode === "archive" && ready, paused: Boolean(modal) || modalClosing || Boolean(wallpaperHost()?.paused) || document.hidden, reduced: motionIsReduced() }),
-    value => { musicSuppressed = value; configureAudio(); }, () => audio.play("tick"));
   wallpaperEffects = new WallpaperEffects($("#stage"), () => scene);
   document.addEventListener("click", event => {
     const button = (event.target as Element).closest<HTMLElement>("[data-workbench-mode]");

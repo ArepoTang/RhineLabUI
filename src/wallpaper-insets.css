@@ -12,7 +12,7 @@
 #stage[data-ui-insets="true"]:not([data-mode="boot"]) > .workbench { inset: var(--ui-top) var(--ui-right) 0 var(--ui-left); }
 /* Translate the lower rows AFTER their HUD projection. Changing their layout
    anchors would resample the curved surface and change their relative gaps. */
-#stage[data-ui-insets="true"]:not([data-mode="boot"]) :is(.wb-nav, .system-footer, .relay-entry) {
+#stage[data-ui-insets="true"]:not([data-mode="boot"]) :is(.wb-nav, .system-footer) {
   translate: 0 calc(-1 * var(--ui-bottom));
 }
 #stage[data-ui-insets="true"]:not([data-mode="boot"]) > .brand {
@@ -26,12 +26,6 @@
 }
 #stage[data-ui-insets="true"]:not([data-mode="boot"]) > .powered {
   right: calc(var(--edge) + var(--ui-right)); bottom: calc(108px + var(--ui-bottom));
-}
-#stage[data-ui-insets="true"]:not([data-mode="boot"]) > .relay-entry {
-  left: calc(var(--edge) + var(--ui-left));
-}
-#stage[data-ui-insets="true"]:not([data-mode="boot"]) > .relay-hud {
-  top: calc(15% + var(--ui-top)); left: calc(var(--edge) + var(--ui-left)); right: calc(var(--edge) + var(--ui-right));
 }
 #stage[data-ui-insets="true"]:not([data-mode="boot"]) > .toast {
   left: calc(50% + (var(--ui-left) - var(--ui-right)) / 2); bottom: calc(85px + var(--ui-bottom));
@@ -57,5 +51,4 @@
 #stage[data-layout="portrait"] { --ui-viewer-bottom: calc(var(--bottom-edge) + 24px); }
 @media (max-width: 700px) {
   #stage[data-ui-insets="true"]:not([data-mode="boot"]) > .workbench { top: calc(100px + var(--ui-top)); bottom: 50px; }
-  #stage[data-ui-insets="true"]:not([data-mode="boot"]) > .relay-hud { top: calc(max(120px, 18%) + var(--ui-top)); }
 }

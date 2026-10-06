@@ -46,34 +46,6 @@ export function musicDisplacement(row: number, lane: number, time: number, bands
   const treble = bands.high * .18 * Math.pow(Math.max(0, Math.sin(row * 1.7 - lane * 2.2 - time * 6.4)), 4);
   return clamp((bass + middle + treble) * clamp(strength, 0, 2), 0, 1.8);
 }
-export type RelayStatus = "idle" | "preparing" | "playing" | "over";
-export class RelayRound {
-  status: RelayStatus = "idle";
-  score = 0;
-  target: string | null = null;
-  remaining = 0;
-  total = 0;
-  reason = "";
-  start() { this.status = "preparing"; this.score = 0; this.target = null; this.remaining = .8; this.reason = ""; }
-  stop() { this.status = "idle"; this.target = null; this.remaining = 0; }
-  aim(target: string, pace: "gentle" | "normal" | "quick") {
-    this.target = target; this.status = "playing";
-    const base = pace === "gentle" ? 8 : pace === "quick" ? 4 : 6;
-    this.total = this.remaining = Math.max(base * .55, base - this.score * .12);
-  }
-  tick(dt: number, paused: boolean) {
-    if (paused || (this.status !== "playing" && this.status !== "preparing")) return;
-    this.remaining = Math.max(0, this.remaining - Math.max(0, dt));
-    if (this.status === "playing" && this.remaining === 0) this.finish("这道波纹停下了");
-  }
-  hit(target: string | null) {
-    if (this.status !== "playing") return false;
-    if (target !== this.target) { this.finish("接力结束"); return false; }
-    this.score++; this.status = "preparing"; this.target = null; this.remaining = .28; return true;
-  }
-  finish(reason: string) { this.status = "over"; this.target = null; this.reason = reason; }
-}
-
 export type RhythmStyle = 'legacy' | 'wave' | 'lift';
 export type RhythmFrame = { style: Record<RhythmStyle, number> };
 /** Crossfade styles without a beat gate: sustained notes remain visible. */
