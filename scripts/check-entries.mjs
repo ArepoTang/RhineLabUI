@@ -256,3 +256,18 @@ test("盒子替换机制：records/archiveColumns/categories 原地改写，旧�
   assert.equal(archiveColumns[0], "工程研究");
   assert.notEqual(beforeCategory, undefined);
 });
+
+test("列内偏移在任何来源下都落在目标列（列记忆曾错在这里）", async () => {
+  const { fileLocation: at, columnFiles: inColumn, applyArchiveSource: source } = await import("../src/data.ts");
+  source("entries", many(41));
+  for (let lane = 0; lane < 5; lane++) {
+    const files = inColumn(lane);
+    assert.equal(files.length, 8, `盒子视图第 ${lane} 列不是 8 个`);
+    for (let offset = 0; offset < 8; offset++)
+      assert.equal(at(files[offset]).lane, lane, `盒子视图 offset ${offset} 落到了第 ${at(files[offset]).lane} 列`);
+  }
+  source("builtin");
+  for (let lane = 0; lane < 5; lane++)
+    for (const index of inColumn(lane))
+      assert.equal(at(index).lane, lane, `设定档案视图第 ${lane} 列里有索引落在了别列`);
+});

@@ -265,7 +265,13 @@ let resumeCell: { lane: number; row: number } | undefined;
 let resumeSelection = -1;
 let viewer: ModelViewer | undefined;
 const accessLog: { id: string; time: string }[] = [];
-const columnMemory = archiveColumns.map((_, lane) => columnFiles(lane)[0]);
+/** 每列记住"上次停在这列的哪个位置"，存的是**列内偏移**而不是全局索引 ——
+    全局索引会随内容来源切换与新盒子产生而指向别的列（原先就错在这里）。 */
+const columnMemory = archiveColumns.map(() => 0);
+const indexAtLane = (lane: number) => {
+  const files = columnFiles(wrap(lane, archiveColumns.length));
+  return files.length ? files[wrap(columnMemory[wrap(lane, archiveColumns.length)], files.length)] : selected;
+};
 function recordAccess() {
   accessLog.unshift({
     id: records[selected].id,
@@ -420,7 +426,8 @@ function setMode(next: Mode) {
 }
 function select(index: number, navigation?: ArchiveNavigation) {
   selected = (index + records.length) % records.length;
-  columnMemory[fileLocation(selected).lane] = selected;
+  const at = fileLocation(selected);
+  columnMemory[at.lane] = at.row - 12;
   if (mode === "detail") setMode("archive");
   activeTab = "overview";
   scene?.select(selected, navigation);
@@ -439,7 +446,7 @@ function stepFile(direction: number) {
 function stepColumn(direction: number) {
   const lane = fileLocation(selected).lane;
   const next = wrap(lane + direction, archiveColumns.length);
-  select(columnMemory[next], { axis: "lane", direction });
+  select(indexAtLane(next), { axis: "lane", direction });
 }
 function updateSelection(navigation?: ArchiveNavigation) {
   const r = records[selected];
@@ -1346,7 +1353,7 @@ if (isWallpaper) {
   workbench = new Workbench($("#stage"), () => {
     if (ready && mode !== "boot") setMode("archive");
   }, lane => {
-    if (ready && !modal) select(columnMemory[lane]);
+    if (ready && !modal) select(indexAtLane(lane));
   });
   workbench.setMotion(prefs.motion);
   wallpaperEffects = new WallpaperEffects($("#stage"), () => scene);
