@@ -1173,7 +1173,7 @@ function releaseThree() {
     $("#detail-content").inert = false;
     documentDecryption.reset($("#detail-content"), true);
   }
-  threeState = "off"; prefs.threeOff = true; syncThreeButton();
+  threeState = "off"; prefs.threeOff = true; savePrefs(); syncThreeButton();
   $("#hover-label").hidden = true;
   delete $("#three-scene").dataset.renderQuality;
   updateQualitySummary();
@@ -1205,7 +1205,8 @@ async function toggleThree() {
     scene.setArchiveCoverage(wallpaperHost()?.properties.archivecoverage?.value === "extra");
     savePrefs();
     scene.setPresentationVisible(true, !motionActive("surfaceTransitions"));
-    threeState = "on"; prefs.threeOff = false; syncThreeButton();
+    // 先改值再存：原来这次 savePrefs() 跑在 threeOff = false 之前，落盘的是旧值。
+    threeState = "on"; prefs.threeOff = false; savePrefs(); syncThreeButton();
   } catch (error) {
     next?.dispose(); scene = undefined;
     threeState = "off"; syncThreeButton();
