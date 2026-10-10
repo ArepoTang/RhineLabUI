@@ -10,7 +10,6 @@
 [data-layout="opening"] .archive-callout { left: 50.520833%; width: 49.479167%; }
 [data-layout="opening"] .file-title { font-size: clamp(22px, 2vw, 32px); }
 [data-mobile-boot="true"] [data-layout="opening"] .powered { left: var(--edge); right: auto; bottom: 50px; }
-.mobile-entry { display: none; }
 .system-nav .settings-button { position: relative; }
 .settings-label { position: absolute; left: 50%; top: calc(100% + 3px); transform: translateX(-50%); font-size: 10px; white-space: nowrap; letter-spacing: 1px; }
 .pwa-update-notice { position: absolute; z-index: 12; right: var(--edge); bottom: var(--bottom-edge, 32px); max-width: calc(100% - 2 * var(--edge)); min-height: 44px; display: flex; align-items: center; gap: 20px; padding: 0 16px; background: #30362a; color: #f1efdf; font-size: 12px; }
@@ -27,8 +26,6 @@
 .pwa-actions:empty { display: none; }
 .pwa-actions button { min-height: 44px; border-bottom: 1px solid #8e897b; font-size: 12px; }
 @media (display-mode: standalone) { body { overscroll-behavior: none; } }
-[data-mobile-boot="true"] > .mobile-entry { display: flex; position: absolute; bottom: max(28px, env(safe-area-inset-bottom)); right: max(24px, env(safe-area-inset-right)); align-items: center; gap: 32px; min-height: 48px; padding: 0 16px; font-size: 14px; border-bottom: 1px solid #8e897b; }
-[data-mobile-boot="true"] .skip { display: none; }
 .three-scene canvas { touch-action: none; }
 [data-layout="desktop"] .archive-callout { left: 50.520833%; width: 49.479167%; }
 [data-layout="desktop"] .file-summary { width: min(652px, calc(100% - 117px)); gap: 20px; }

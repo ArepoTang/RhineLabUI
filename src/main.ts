@@ -12,6 +12,8 @@ import "./style.css";
 import "./quality-settings.css";
 import "./entries.css";
 import { EntriesBoard, boardBodyMarkup, editorMarkup, entriesMarkup } from "./entries-ui";
+import { loadOperatorId, operatorId, setOperatorId } from "./operator";
+import { saveViaHost } from "./host-export";
 import "./responsive.css";
 import { viewportLayout, openingLayout } from "./viewport-layout";
 import { assetUrl } from "./asset-url";
@@ -21,6 +23,7 @@ import { ArchiveScene } from "./scene";
 import { ModelViewer } from "./model-viewer";
 import { ContentTransition, SurfaceTransition } from "./ui-transitions";
 import { BootSequence } from "./boot";
+import { OPENING_END } from "./boot-motion";
 import { loadBootWebfonts } from "./boot-lettering";
 import { wrap, type ArchiveNavigation } from "./archive-loop";
 import {
@@ -47,7 +50,7 @@ import {
 } from "./motion-preferences";
 import { StartupGate } from "./startup";
 import { dayKey } from "./workbench-state";
-import { isDayKey, newEntry, removeEntry, saveEntry, type Entry } from "./entries";
+import { entryKind, isDayKey, isLog, logLocked, logOn, logsMarkdown, newEntry, removeEntry, saveEntry, type Entry, type EntryKind } from "./entries";
 import { canAdd } from "./boxes";
 import { isWallpaper, wallpaperHost, wallpaperFrame, type WallpaperProperties } from "./wallpaper";
 import "./startup.css";
@@ -69,12 +72,11 @@ $("#stage").innerHTML = `
   <div class="scene-atmosphere archive-atmosphere"></div>
   <div id="boot-background" class="boot-background"><svg viewBox="0 0 1920 1080" preserveAspectRatio="none"><g fill="none" stroke="#fff" stroke-width="3"><path d="M-210 705C-45 705 182 704 247 567C337 377 99 306 4 435S27 680 169 631C309 584 227 314 279 111S568-113 568-113"/><path d="M1560-80C1374 114 1671 168 1601 323S1371 367 1431 480S1692 666 1559 787S1329 886 1498 1130"/><circle cx="1450" cy="648" r="346"/><circle cx="1450" cy="648" r="348"/></g></svg></div>
   <header class="brand">${brandHeading}</header>
-  <nav class="system-nav" aria-label="系统导航"><button class="entries-button" data-action="entries" aria-label="日历与笔记" title="日历与笔记"><svg class="entries-icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4.5" width="18" height="16"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4"/><path d="M8 13h.01M12 13h.01M16 13h.01M8 16.5h.01M12 16.5h.01M16 16.5h.01" stroke-width="2.2" stroke-linecap="round"/></svg></button>
+  <nav class="system-nav" aria-label="系统导航"><button class="entries-button" data-action="entries" aria-label="待办与日志" title="待办与日志"><svg class="entries-icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4.5" width="18" height="16"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4"/><path d="M8 13h.01M12 13h.01M16 13h.01M8 16.5h.01M12 16.5h.01M16 16.5h.01" stroke-width="2.2" stroke-linecap="round"/></svg></button>
     <button data-action="search"><span class="nav-glyph">⌕</span> ARCHIVE INDEX <span class="key">/</span></button>
     <button data-action="saved" aria-label="查看收藏档案" title="收藏档案">＋ SAVED <span id="saved-count">00</span></button>
     <button class="settings-button" data-action="settings" aria-label="系统设置" title="系统设置"><span class="settings-glyph" aria-hidden="true">◷</span><span class="settings-label">设置</span></button>
   </nav>
-  <button id="skip" class="skip" data-action="skip">ENTER SYSTEM <span>↗</span></button>
   <section id="boot" class="boot" aria-label="系统启动">
     <div class="access-text">ACCESS</div>
     <div class="boot-logo">${logo}</div>
@@ -98,7 +100,7 @@ $("#stage").innerHTML = `
     <article id="detail-content" class="detail-content"></article>
   </section>
   <div class="powered">POWERED BY <b>RHINE LAB</b><i></i></div>
-  <footer class="system-footer"><span><i class="status-light"></i> SESSION AUTHORIZED${isWallpaper ? '<button type="button" class="three-toggle" data-action="toggle-three" aria-pressed="true" title="卸载三维模型，保留 2D 界面">3D 开启</button>' : ''}</span><span>JOYCE MOORE <i>／</i> <span id="clock">00:00:00</span></span><button data-action="replay" title="重播启动流程">REINITIALIZE ↗</button></footer>
+  <footer class="system-footer"><span><i class="status-light"></i> SESSION AUTHORIZED${isWallpaper ? '<button type="button" class="three-toggle" data-action="toggle-three" aria-pressed="true" title="卸载三维模型，保留 2D 界面">3D 开启</button>' : ''}</span><span><span id="operator-name">${operatorId}</span> <i>／</i> <span id="clock">00:00:00</span></span><button data-action="replay" title="重播启动流程">REINITIALIZE ↗</button></footer>
   <div id="pwa-update-notice" class="pwa-update-notice" role="status" hidden><span>新版本已就绪</span><button data-pwa-action="update">更新并重启 ↻</button></div>
   <div id="modal-root"></div><div id="toast" class="toast" role="status"></div>
   <div id="loading" class="loading"><div class="loading-mark">${logo}</div><span>CONNECTING TO INTERNAL DATABASE</span><i></i></div>
@@ -109,7 +111,6 @@ $("#boot-background").insertAdjacentHTML(
   '<div class="boot-white"></div>',
 );
 const bootSequence = new BootSequence($("#stage"));
-$("#viewport").insertAdjacentHTML("beforeend", '<button class="mobile-entry" data-action="skip">进入档案 <span>→</span></button>');
 
 type Mode = "boot" | "archive" | "detail";
 let mode: Mode = "boot",
@@ -122,6 +123,7 @@ let modal: "search" | "saved" | "settings" | "entries" | "entry" | null = null,
   filter = "全部档案";
 // 弹窗打开时正在编辑的条目；null 表示新建，日期由 editingDate 决定。
 let editingEntryId: string | null = null,
+  editingEntryKind: EntryKind = "todo",
   editingDate = dayKey(new Date());
 const board = new EntriesBoard();
 let activeTab = "overview";
@@ -162,7 +164,7 @@ function readLocal<T>(key: string, fallback: T): T {
   }
 }
 const saved = new Set<string>(readLocal<string[]>("rhine-saved", []));
-const storedPrefs = readLocal<Partial<{ sound: boolean; music: boolean; soundVolume: number; musicVolume: number; reduced: boolean; quality: boolean; rendering: RenderQuality; superPerformance: boolean; threeOff: boolean; builtinArchives: boolean; colorTheme: "light" | "dark"; motion: StoredMotion; motionPreset: MotionPreset }>>("rhine-settings", {});
+const storedPrefs = readLocal<Partial<{ sound: boolean; music: boolean; soundVolume: number; musicVolume: number; reduced: boolean; quality: boolean; rendering: RenderQuality; superPerformance: boolean; threeOff: boolean; colorTheme: "light" | "dark"; operatorId: string; motion: StoredMotion; motionPreset: MotionPreset }>>("rhine-settings", {});
 const initialMotion = createMotionPreferences(
   storedPrefs.motion,
   storedPrefs.reduced ?? (storedPrefs.motion === undefined
@@ -172,7 +174,6 @@ const initialMotion = createMotionPreferences(
 const initialMotionPreset = motionPresetFor(initialMotion);
 const prefs = {
   threeOff: storedPrefs.threeOff ?? false,
-  builtinArchives: storedPrefs.builtinArchives ?? false,
   sound: storedPrefs.sound ?? true,
   music: storedPrefs.music ?? storedPrefs.sound ?? true,
   soundVolume: storedPrefs.soundVolume ?? .55,
@@ -183,7 +184,11 @@ const prefs = {
   superPerformance: storedPrefs.superPerformance ?? false,
   rendering: normalizeQuality(storedPrefs.rendering, storedPrefs.quality !== false),
   colorTheme: storedPrefs.colorTheme === "dark" ? "dark" : "light",
+  // 空字符串 = 这台机器还没确认过身份，首次开屏会先问一次。
+  operatorId: storedPrefs.operatorId ?? "",
 };
+setOperatorId(prefs.operatorId);
+syncOperator();
 const motionActive = (key: MotionKey) => motionEnabled(prefs.motion, key);
 const motionIsReduced = () => Object.values(prefs.motion).every((value) => !value);
 paintTheme(prefs.colorTheme === "dark" ? 1 : 0);
@@ -247,7 +252,6 @@ const loading = $("#loading");
 // reference animation still uses its calibrated 1920 x 1080 stage.
 $("#viewport").append(loading);
 $("#stage").inert = true;
-$(".mobile-entry").inert = true;
 /**
  * APK 宿主标记：MainActivity 在 START_URL 上挂 ?host=apk。
  * 我们的 WebView 已经设了 setMediaPlaybackRequiresUserGesture(false)，
@@ -290,6 +294,17 @@ function saveAudioPrefs() {
     localStorage.setItem("rhine-settings", JSON.stringify(prefs));
   } catch {}
   configureAudio();
+}
+/** 页脚、设置抬头与日志署名共用同一个名字（开场那行读模块里的活绑定）。 */
+function syncOperator() {
+  const label = document.querySelector("#operator-name");
+  if (label) label.textContent = operatorId;
+}
+function applyOperatorId(value: string) {
+  prefs.operatorId = value.trim();
+  setOperatorId(value);
+  syncOperator();
+  savePrefs();
 }
 function superPerformanceEnabled() { return isWallpaper ? wallpaperHost()?.properties.superperformance?.value === true : prefs.superPerformance; }
 function effectiveRenderQuality() { return superPerformanceEnabled() ? superPerformanceQuality : prefs.rendering; }
@@ -596,7 +611,7 @@ function setTab(tab: string, sound = true) {
             .slice(0, 4)
             .map(
               (entry) =>
-                `<div class="log-row"><span>${entry.time}</span><span>JOYCE MOORE</span><b>READ AUTHORIZED</b></div>`,
+                `<div class="log-row"><span>${entry.time}</span><span>${operatorId}</span><b>READ AUTHORIZED</b></div>`,
             )
             .join(
               "",
@@ -656,7 +671,7 @@ function renderModal() {
   if (!modal) return;
   modalTransition?.dispose();
   $("#modal-root").innerHTML =
-    `<div class="modal-backdrop${modal === "entries" ? " entries-backdrop" : ""}"><section class="terminal-modal ${modal === "settings" ? "settings-modal" : modal === "entry" ? "entry-modal" : modal === "entries" ? "entries-modal" : ""}" role="dialog" aria-modal="true" aria-label="${modal === "settings" ? "系统设置" : modal === "entries" ? "日历与笔记" : modal === "entry" ? "条目" : modal === "saved" ? "收藏档案" : "档案检索"}"><div class="modal-top"><span>RHINE LAB / ${modal === "settings" ? "SYSTEM PREFERENCES" : modal === "entries" ? "PERSONAL SCHEDULE" : modal === "entry" ? "PERSONAL ENTRY" : "ARCHIVE DIRECTORY"}</span><button data-action="close-modal" aria-label="关闭窗口">CLOSE <span>×</span></button></div>${modal === "settings" ? settingsMarkup() : modal === "entries" ? entriesMarkup(board) : modal === "entry" ? editorMarkup(editingEntryId ? board.entry(editingEntryId) : undefined, editingDate) : `<h2>${modal === "saved" ? "SAVED ARCHIVES" : "ARCHIVE INDEX"}<small>${modal === "saved" ? "收藏档案" : "内部档案检索"}</small></h2><div class="search-field"><span>⌕</span><input id="archive-search" type="search" autocomplete="off" placeholder="输入档案编号、名称或科室" aria-label="检索档案"/><span class="key">ESC</span></div><div class="category-filters">${categories.map((c, i) => `<button data-filter="${escapeHtml(c)}" class="${i === 0 ? "active" : ""}">${escapeHtml(c)}</button>`).join("")}</div><div class="result-header"><span>FILE / 档案</span><span>DEPARTMENT / 科室</span><span>ACCESS</span></div><div id="search-results" class="search-results"></div><div class="modal-bottom"><span id="result-count"></span><span>INTERNAL DATABASE <i>●</i> CONNECTED</span></div>`}</section></div>`;
+    `<div class="modal-backdrop${modal === "entries" ? " entries-backdrop" : ""}"><section class="terminal-modal ${modal === "settings" ? "settings-modal" : modal === "entry" ? "entry-modal" : modal === "entries" ? "entries-modal" : ""}" role="dialog" aria-modal="true" aria-label="${modal === "settings" ? "系统设置" : modal === "entries" ? "待办与日志" : modal === "entry" ? "条目" : modal === "saved" ? "收藏档案" : "档案检索"}"><div class="modal-top"><span>RHINE LAB / ${modal === "settings" ? "SYSTEM PREFERENCES" : modal === "entries" ? "PERSONAL SCHEDULE" : modal === "entry" ? "PERSONAL ENTRY" : "ARCHIVE DIRECTORY"}</span><button data-action="close-modal" aria-label="关闭窗口">CLOSE <span>×</span></button></div>${modal === "settings" ? settingsMarkup() : modal === "entries" ? entriesMarkup(board) : modal === "entry" ? editorMarkup(editingEntryId ? board.entry(editingEntryId) : undefined, editingDate, editingEntryKind) : `<h2>${modal === "saved" ? "SAVED ARCHIVES" : "ARCHIVE INDEX"}<small>${modal === "saved" ? "收藏档案" : "内部档案检索"}</small></h2><div class="search-field"><span>⌕</span><input id="archive-search" type="search" autocomplete="off" placeholder="输入档案编号、名称或科室" aria-label="检索档案"/><span class="key">ESC</span></div><div class="category-filters">${categories.map((c, i) => `<button data-filter="${escapeHtml(c)}" class="${i === 0 ? "active" : ""}">${escapeHtml(c)}</button>`).join("")}</div><div class="result-header"><span>FILE / 档案</span><span>DEPARTMENT / 科室</span><span>ACCESS</span></div><div id="search-results" class="search-results"></div><div class="modal-bottom"><span id="result-count"></span><span>INTERNAL DATABASE <i>●</i> CONNECTED</span></div>`}</section></div>`;
   const backdrop = $(".modal-backdrop");
   backdrop.hidden = true;
   modalTransition = new SurfaceTransition(backdrop, $(".terminal-modal"));
@@ -712,14 +727,26 @@ function motionPreferenceNoteMarkup() {
   const allEnabled = Object.values(prefs.motion).every(Boolean);
   return `<div id="motion-preference-note" class="motion-preference-note"><p>${motionSummary(prefs.motion)}</p><span>预设：${preset === "full" ? "完整动画" : preset === "reduced" ? "减少动画" : "自定义"} · 选择会保存在本站</span>${allEnabled ? "" : '<button data-action="enable-motion">启用完整动画并重播 ↻</button>'}</div>`;
 }
-function openEntryEditor(date: string, id?: string) {
+/** 生成临时 Blob 交给浏览器下载（Android 落到下载目录，iOS 走分享存进「文件」）。 */
+function downloadText(name: string, text: string) {
+  const url = URL.createObjectURL(new Blob([text], { type: "text/markdown;charset=utf-8" }));
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = name;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10_000);
+}
+function openEntryEditor(date: string, id?: string, kind: EntryKind = "todo") {
   editingEntryId = id ?? null;
+  editingEntryKind = kind;
   editingDate = date;
   openModal("entry");
 }
-/** 读取条目并把阵列内容切到对应来源。任何改动条目之后都要走这里。 */
+/** 读取日志（盒子只装日志）并把阵列内容重建。任何改动条目之后都要走这里。 */
 function refreshEntries() {
-  return board.load().then(() => applyArchiveSource(prefs.builtinArchives ? "builtin" : "entries", board.entries));
+  return board.load().then(() => applyArchiveSource(board.entries));
 }
 /** 日历是编辑器唯一入口，保存/删除后回到日历。 */
 function reopenEntries() {
@@ -740,7 +767,7 @@ function editorValues(): { date: string; time: string; title: string; body: stri
   };
 }
 function settingsMarkup() {
-  return `<h2>SYSTEM SETTINGS<small>终端偏好设置</small></h2><p class="settings-intro">JOYCE MOORE <span>·</span> SESSION AUTHORIZED</p>${isWallpaper ? '<p class="wallpaper-settings-note">每次启动都会读取 Wallpaper Engine 中的设置。在此修改仅对当前运行生效，无法持久保存；如需保留，请在 Wallpaper Engine 的壁纸属性中调整。</p>' : ""}<div class="settings-list">${themeSettingsMarkup(prefs.colorTheme === "dark")}${!isWallpaper ? `<label><div><strong>SUPER PERFORMANCE</strong><span>降低三维画质和渲染分辨率，保留完整动效；关闭后恢复原画质</span></div><input type="checkbox" data-pref="superPerformance" ${prefs.superPerformance ? "checked" : ""}/><i class="toggle"></i></label>` : ""}${workbench?.settingsMarkup() ?? ""}${audioSettingsMarkup(prefs)}<label><div><strong>三维档案</strong><span>关闭后卸载三维模型，只保留平面界面；重新开启会重新载入模型</span></div><input type="checkbox" id="three-pref" ${threeState === "on" ? "checked" : ""}/><i class="toggle"></i></label><label><div><strong>阵列内容</strong><span>打开后阵列显示内置的 40 份设定档案；关闭则显示你自己的条目（盒子）</span></div><input type="checkbox" data-pref="builtinArchives" ${prefs.builtinArchives ? "checked" : ""}/><i class="toggle"></i></label></div>${motionPreferenceNoteMarkup()}${motionSettingsMarkup(prefs.motion, prefs.motionPreset)}${qualityMarkup(prefs.rendering)}<div class="settings-shortcuts">${isWallpaper ? '<span>DESKTOP CONTROLS</span><p>拖动阵列或点击界面按钮浏览档案。桌面模式下，方向键与滚轮可能无法传入壁纸。</p>' : '<span>KEYBOARD CONTROLS</span><p><kbd>←</kbd><kbd>→</kbd> 切列 <kbd>↑</kbd><kbd>↓</kbd> 选档 <kbd>ENTER</kbd> 读取 <kbd>/</kbd> 检索 <kbd>ESC</kbd> 返回</p>'}</div><div class="settings-bottom"><button data-action="restart">REINITIALIZE SYSTEM <span>↻</span></button></div><div class="modal-bottom"><span>ANALYSIS OS / 1.0 · 使用 MiSans 字体（小米） <a href="${assetUrl("fonts/MiSans-license.pdf")}" target="_blank" rel="noopener">字体许可</a></span><span>POWERED BY RHINE LAB</span></div>`;
+  return `<h2>SYSTEM SETTINGS<small>终端偏好设置</small></h2><p class="settings-intro">${operatorId} <span>·</span> SESSION AUTHORIZED</p><div class="settings-identity"><div><strong>操作员 ID</strong><span>开场身份确认、页脚与日志署名；留空恢复 JOYCE MOORE</span></div><input id="operator-id" type="text" maxlength="24" autocomplete="off" spellcheck="false" value="${escapeHtml(operatorId)}"/></div>${isWallpaper ? '<p class="wallpaper-settings-note">每次启动都会读取 Wallpaper Engine 中的设置。在此修改仅对当前运行生效，无法持久保存；如需保留，请在 Wallpaper Engine 的壁纸属性中调整。</p>' : ""}<div class="settings-list">${themeSettingsMarkup(prefs.colorTheme === "dark")}${!isWallpaper ? `<label><div><strong>SUPER PERFORMANCE</strong><span>降低三维画质和渲染分辨率，保留完整动效；关闭后恢复原画质</span></div><input type="checkbox" data-pref="superPerformance" ${prefs.superPerformance ? "checked" : ""}/><i class="toggle"></i></label>` : ""}${workbench?.settingsMarkup() ?? ""}${audioSettingsMarkup(prefs)}<label><div><strong>三维档案</strong><span>关闭后卸载三维模型，只保留平面界面；重新开启会重新载入模型</span></div><input type="checkbox" id="three-pref" ${threeState === "on" ? "checked" : ""}/><i class="toggle"></i></label></div>${motionPreferenceNoteMarkup()}${motionSettingsMarkup(prefs.motion, prefs.motionPreset)}${qualityMarkup(prefs.rendering)}<div class="settings-shortcuts">${isWallpaper ? '<span>DESKTOP CONTROLS</span><p>拖动阵列或点击界面按钮浏览档案。桌面模式下，方向键与滚轮可能无法传入壁纸。</p>' : '<span>KEYBOARD CONTROLS</span><p><kbd>←</kbd><kbd>→</kbd> 切列 <kbd>↑</kbd><kbd>↓</kbd> 选档 <kbd>ENTER</kbd> 读取 <kbd>/</kbd> 检索 <kbd>ESC</kbd> 返回</p>'}</div><div class="settings-bottom"><button data-action="restart">REINITIALIZE SYSTEM <span>↻</span></button></div><div class="modal-bottom"><span>ANALYSIS OS / 1.0 · 使用 MiSans 字体（小米） <a href="${assetUrl("fonts/MiSans-license.pdf")}" target="_blank" rel="noopener">字体许可</a></span><span>POWERED BY RHINE LAB</span></div>`;
 }
 
 document.addEventListener("input", (e) => {
@@ -773,10 +800,10 @@ document.addEventListener("change", (e) => {
     prefs.rendering = normalizeQuality({ ...prefs.rendering, [key]: key === "antialias" ? el.value : Number(el.value) });
     savePrefs();
   }
+  if (el.id === "operator-id") { applyOperatorId(el.value); return; }
   if (el.dataset.pref) {
     const key = el.dataset.pref;
-    if (key === "sound" || key === "music" || key === "quality" || key === "superPerformance" || key === "builtinArchives") prefs[key] = el.checked;
-    if (key === "builtinArchives") { void refreshEntries(); notify(el.checked ? "阵列已切到设定档案" : "阵列已切到个人条目"); }
+    if (key === "sound" || key === "music" || key === "quality" || key === "superPerformance") prefs[key] = el.checked;
     if (key === "sound" || key === "music") saveAudioPrefs(); else savePrefs();
     audio.play("confirm");
   }
@@ -850,39 +877,77 @@ document.addEventListener("click", (e) => {
   const action = el.dataset.action;
   if (action === "save-entry" || action === "delete-entry") {
     const id = editingEntryId;
-    // 1600 封顶：只在新增时拦，编辑/删除永远允许
-    if (action === "save-entry" && !id && !canAdd(board.entries.length)) { notify("篇目已满（1600 条），请先删除一些条目"); return; }
+    const existing = id ? board.entry(id) : undefined;
+    // 日志过日只读：不能改、也不能删（列表里也不给入口，这里再挡一次）。
+    if (existing && logLocked(existing, board.today)) { notify("这天的日志已归档，只读的"); return; }
+    const kind: EntryKind = existing ? entryKind(existing) : editingEntryKind;
+    if (kind === "log") {
+      if (action === "delete-entry") { notify("日志不能删除"); return; }
+      // 盒子只装日志，1600 条封顶（≈4 年日更；到顶后只能清本机数据重来）。
+      if (!existing && !canAdd(board.entries.filter(isLog).length)) { notify("日志盒子已满（1600 条）"); return; }
+      const body = (document.querySelector<HTMLTextAreaElement>("#entry-body-field")?.value ?? "").replace(/\s+$/, "");
+      if (!body) { notify("空日志没有保存"); return; }
+      const entry: Entry = existing ? { ...existing } : newEntry(board.today, Date.now(), "log");
+      entry.kind = "log";
+      entry.body = body;
+      entry.updated = Date.now();
+      void saveEntry(entry).then(() => closeModal(() => { notify(existing ? "日志已更新" : "日志已保存"); reopenEntries(); }));
+      return;
+    }
     if (action === "delete-entry") {
       if (!id) return;
-      void removeEntry(id).then(() => closeModal(() => { notify("条目已删除"); reopenEntries(); }));
+      void removeEntry(id).then(() => closeModal(() => { notify("待办已删除"); reopenEntries(); }));
       return;
     }
     const values = editorValues();
     if (!values) return;
     if (!values.title && !values.body) { notify("空条目没有保存"); return; }
-    const existing = id ? board.entry(id) : undefined;
     const entry: Entry = existing ? { ...existing } : newEntry(values.date);
+    entry.kind = "todo";
     entry.date = values.date;
     entry.time = values.time;
     entry.title = values.title;
     entry.body = values.body;
     entry.updated = Date.now();
-    void saveEntry(entry).then(() => closeModal(() => { notify(existing ? "条目已更新" : "条目已保存"); reopenEntries(); }));
+    void saveEntry(entry).then(() => closeModal(() => { notify(existing ? "待办已更新" : "待办已保存"); reopenEntries(); }));
     return;
   }
   if (action === "entries") { reopenEntries(); return; }
+  if (action === "export-logs") {
+    // 方案 3：不碰系统文件夹，一次把全部日志写成一个 Markdown 文件。
+    // APK 里有原生桥 → 写进 Documents/RhineLab；浏览器里 → 交给下载。
+    const logs = board.entries.filter(isLog);
+    if (!logs.length) { notify("还没有日志可以导出"); return; }
+    const name = `rhine-labs-${dayKey(new Date())}.md`;
+    const path = saveViaHost(name, logsMarkdown(logs));
+    if (path) notify(`${logs.length} 天日志已写入 ${path}`);
+    else {
+      downloadText(name, logsMarkdown(logs));
+      notify(`已导出 ${logs.length} 天日志`);
+    }
+    audio.play("confirm");
+    return;
+  }
   if (el.dataset.entryDay !== undefined) { board.selectDay(el.dataset.entryDay); renderEntryBody(); return; }
   if (el.dataset.entryMonth !== undefined) { board.shiftMonth(Number(el.dataset.entryMonth)); renderEntryBody(); return; }
   if (el.dataset.entryToday !== undefined) { board.selectDay(dayKey(new Date())); renderEntryBody(); return; }
   if (el.dataset.entryNew !== undefined) { openEntryEditor(el.dataset.entryNew); return; }
-  if (el.dataset.entryOpen !== undefined) { openEntryEditor(board.entry(el.dataset.entryOpen)?.date ?? board.selectedDay, el.dataset.entryOpen); return; }
+  if (el.dataset.entryLog !== undefined) {
+    const day = el.dataset.entryLog;
+    const log = logOn(board.entries, day);
+    if (log && logLocked(log, board.today)) { notify("这天的日志已归档，只读的"); return; }
+    openEntryEditor(log?.date ?? day, log?.id, "log");
+    return;
+  }
+  if (el.dataset.entryOpen !== undefined) {
+    const found = board.entry(el.dataset.entryOpen);
+    if (found && logLocked(found, board.today)) { notify("这天的日志已归档，只读的"); return; }
+    openEntryEditor(found?.date ?? board.selectedDay, el.dataset.entryOpen, found ? entryKind(found) : "todo");
+    return;
+  }
   if (el.dataset.entryToggle !== undefined) { void board.toggle(el.dataset.entryToggle).then(renderEntryBody); return; }
   if (action === "toggle-three") { void toggleThree(); return; }
   if (action === "sound-preview") audio.play("confirm");
-  if (action === "skip") {
-    setMode("archive");
-    audio.play("confirm");
-  }
   if (action === "prev") stepFile(-1);
   if (action === "next") stepFile(1);
   if (action === "column-prev") stepColumn(-1);
@@ -1015,6 +1080,16 @@ const ease = (t: number) => {
 };
 function bootFrame(t: number) {
   if (isWallpaper && !scene && frozenTime === null && t >= 21.9) {
+    setMode("archive");
+    return undefined;
+  }
+  // 开屏到欢迎页结束：欢迎页放完直接进阵列，不再播白场之后的整组抬升、
+  // SELECTING FILES 与镜头推进，也不在 30 s 处自动打开详情。
+  // 要把这段入场找回来，删掉这个分支即可。
+  if (!isWallpaper && frozenTime === null && t >= OPENING_END) {
+    // 入场编排不跑了，把 bootFrame 写下的入场中间值收回到终态。
+    $("#stage").style.removeProperty("--entry-opacity");
+    $(".callout-rule").style.removeProperty("transform");
     setMode("archive");
     return undefined;
   }
@@ -1233,7 +1308,7 @@ async function start() {
       // With unicode-range faces, preload the opening's actual characters,
       // not every font shard. Other archive text loads on demand.
       document.fonts.load("300 20px MiSans", "ACCESS WELCOME TO INTERNAL DATABASE"),
-      document.fonts.load("400 20px MiSans", "身份信息确认请求已接收开始处理权限验证通过欢迎访问莱茵生命内部资料档案编号保密级别商业区选择档案：0123456789 JOYCE MOORE"),
+      document.fonts.load("400 20px MiSans", `身份信息确认请求已接收开始处理权限验证通过欢迎访问莱茵生命内部资料档案编号保密级别商业区选择档案：0123456789 ${operatorId}`),
       document.fonts.load("600 20px MiSans", "SYNTHESIZE INFORMATION ANALYSIS OS"),
       document.fonts.load("700 20px MiSans", "RHINE LAB WELCOME TO INTERNAL DATABASE"),
     ]);
@@ -1264,6 +1339,32 @@ function completeStartup(silent: boolean) {
     prefs.music = false;
     saveAudioPrefs();
   }
+  // 首次开屏先问 ID：开场那行 `ID CONFIRMED : …`、页脚与日志署名都读它。
+  // 壁纸宿主里没有输入交互，也没有 WE 属性，直接沿用默认名字。
+  if (!prefs.operatorId && !isWallpaper && !reviewParams.has("time") && !reviewParams.get("review")) {
+    askOperatorId(() => beginBoot());
+    return;
+  }
+  beginBoot();
+}
+/** 问一次身份再开场；答完才把声音和开场时间轴放开，避免背后先跑一半。 */
+function askOperatorId(done: () => void) {
+  loading.insertAdjacentHTML(
+    "beforeend",
+    `<form class="identity-gate" id="identity-gate"><strong>OPERATOR ID</strong><p>第一次进入，先确认身份。这个名字会用在开场身份确认、页脚与日志署名，之后可以在设置里改。</p><label><span>身份名称</span><input id="operator-id" type="text" maxlength="24" autocomplete="off" spellcheck="false" value="${escapeHtml(operatorId)}"/></label><button type="submit">确认并进入 <span>↗</span></button></form>`,
+  );
+  const form = document.querySelector<HTMLFormElement>("#identity-gate")!;
+  const input = form.querySelector<HTMLInputElement>("#operator-id")!;
+  input.focus({ preventScroll: true });
+  input.select();
+  form.addEventListener("submit", (event) => {
+    event.preventDefault();
+    applyOperatorId(input.value);
+    form.remove();
+    done();
+  });
+}
+function beginBoot() {
   audio.releaseEntry();
   audio.restartBoot();
   const fade = motionActive("boot") ? 600 : 0;
@@ -1274,17 +1375,13 @@ function completeStartup(silent: boolean) {
   if (reviewParams.get("scene") === "detail") setMode("detail");
   if (isWallpaper && wallpaperHost()?.properties.boot?.value === false) setMode("archive");
   $("#stage").inert = false;
-  $(".mobile-entry").inert = false;
   loading.classList.add("loaded");
   loading.inert = true;
   setTimeout(() => {
     const restoreFocus = loading.contains(document.activeElement) || document.activeElement === document.body;
     loading.remove();
-    if (entry && restoreFocus) {
-      const skip = $("#skip");
-      const target = mode === "boot" ? skip.getClientRects().length ? skip : $(".mobile-entry") : $(".read-file");
-      target.focus({ preventScroll: true });
-    }
+    // 开场之后没有"跳过"按钮了，焦点直接交给档案正文（开场期间不抢焦点）。
+    if (entry && restoreFocus && mode !== "boot") $(".read-file").focus({ preventScroll: true });
   }, fade);
   requestAnimationFrame(frame);
   // Do not compete with entry audio/font downloads. Full offline installation

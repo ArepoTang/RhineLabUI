@@ -75,9 +75,6 @@ button {
 [data-review="true"] * {
   transition: none !important;
 }
-[data-review="true"] .skip {
-  display: none;
-}
 .scene-atmosphere {
   position: absolute;
   inset: 0;
@@ -312,23 +309,6 @@ button {
 .welcome-logo svg {
   width: 100%;
   height: 100%;
-}
-.skip {
-  position: absolute;
-  right: 60px;
-  top: 121px;
-  z-index: 10;
-  font-size: 14px;
-  letter-spacing: 1.1px;
-  opacity: 0.55;
-  padding: 10px 0;
-}
-.skip span {
-  margin-left: 28px;
-  font-size: 23px;
-}
-.skip:hover {
-  opacity: 1;
 }
 .brand,
 .powered {
@@ -1278,6 +1258,17 @@ button {
 .settings-list {
   border-top: 1px solid #c1b8a7;
 }
+.settings-identity { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 22px 0 0; }
+.settings-identity strong { display: block; font-size: 12px; letter-spacing: .8px; font-weight: 400; }
+.settings-identity span { display: block; margin-top: 9px; font-size: 12px; color: var(--theme-muted, #938977); }
+.settings-identity input { flex: none; width: 200px; padding: 9px 11px; font: inherit; font-size: 13px; color: var(--theme-ink, #080a08); background: var(--theme-field, #ece9e4); border: 1px solid var(--theme-line, #c1b8a7); }
+/* 首次开屏的身份询问：复用载入遮罩做背景 */
+.identity-gate { display: grid; gap: 12px; width: min(420px, calc(100vw - 60px)); margin-top: 40px; text-align: center; }
+.identity-gate strong { font-size: 13px; letter-spacing: 2px; }
+.identity-gate p { font-size: 12px; line-height: 1.9; color: var(--theme-muted, #777468); }
+.identity-gate label { display: grid; gap: 8px; font-size: 11px; letter-spacing: 1px; color: var(--theme-muted, #888277); text-align: left; }
+.identity-gate input { width: 100%; padding: 11px 12px; font: inherit; font-size: 15px; letter-spacing: 1px; color: var(--theme-ink, #080a08); background: var(--theme-field, #eceae5); border: 1px solid var(--theme-line, #b8b2a4); text-align: center; }
+.identity-gate button { min-height: 46px; border-block: 1px solid #969183; font-size: 14px; letter-spacing: 2px; }
 .audio-settings { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; }
 .settings-list .audio-toggle { padding: 20px 0 12px; border-bottom: 0; }
 .settings-list .audio-toggle span { margin-top: 7px; }
@@ -1387,6 +1378,11 @@ button {
 .motion-settings-head button:disabled {
   cursor: default;
   opacity: 0.7;
+}
+/* 开屏动画单独放在头部之下：只有开启/关闭两档 */
+.motion-settings > .motion-setting {
+  padding: 18px 0;
+  border-bottom: 1px solid #d0c6b5;
 }
 .motion-advanced {
   border-top: 1px solid #c1b8a7;
@@ -1666,10 +1662,6 @@ button {
 [data-mode="archive"] .boot,
 [data-mode="detail"] .boot {
   opacity: 0;
-}
-[data-mode="archive"] .skip,
-[data-mode="detail"] .skip {
-  display: none;
 }
 [data-mode="archive"] .archive-ui {
   opacity: 1;

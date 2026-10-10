@@ -1,8 +1,12 @@
 // Original footage is 25 fps. App time zero corresponds to video time 5 s.
+// 2D 开屏到欢迎页结束：app 21.92 s = 原片 26.92 s 的白场，之后交给档案阵列。
+// 主应用与独立的 boot.html 用同一个终点。
+export const OPENING_END = 21.92;
 // Discrete editorial cuts use frame numbers; spatial motion uses continuous time.
-import { brandTrack, companyTrack, scanTrack, track } from "./boot-tracks";
-import { scanOrbitTrack } from "./boot-orbit-tracks";
-import { bootLogoTrack } from "./boot-logo-tracks";
+import { brandTrack, companyTrack, scanTrack, track } from "./boot-tracks.ts";
+import { operatorId } from "./operator.ts";
+import { scanOrbitTrack } from "./boot-orbit-tracks.ts";
+import { bootLogoTrack } from "./boot-logo-tracks.ts";
 export const progress = (t: number, a: number, b: number) =>
   Math.max(0, Math.min(1, (t - a) / (b - a)));
 export const smooth = (p: number) => p * p * (3 - 2 * p);
@@ -37,7 +41,7 @@ export function bootMotion(appTime: number) {
   let auth = "";
   if (f < 363) {
     auth = typed("ID CONFIRMED", f, 282, 295);
-    if (f >= 320) auth += " : " + typed("JOYCE MOORE", f, 321, 339);
+    if (f >= 320) auth += " : " + typed(operatorId, f, 321, 339);
   } else if (f < 421) auth = typed("REQUEST RECEIVED", f, 367, 389);
   else {
     auth = typed("START PROCESSING", f, 423, 440);

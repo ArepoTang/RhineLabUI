@@ -14,6 +14,8 @@ const hasNovecento = ["Normal", "DemiBold", "Bold"].every(weight =>
 );
 export default defineConfig(({ mode }) => ({
   base: mode === "wallpaper" ? "./" : "/",
+  // boot.html is the standalone opening; the wallpaper package ships only the app.
+  build: mode === "wallpaper" ? {} : { rollupOptions: { input: { index: "index.html", boot: "boot.html" } } },
   define: {
     __RHINE_MODELS__: JSON.stringify(Object.fromEntries(models.map(model => [model.key,model.fileName]))),
     __RHINE_NOVECENTO__: JSON.stringify(hasNovecento),

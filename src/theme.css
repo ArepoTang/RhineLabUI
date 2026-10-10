@@ -6,7 +6,7 @@
 .theme-choices button[aria-pressed="true"] { background: #171713; color: #ece9e4; }
 
 [data-dark-surface="true"] { color-scheme: dark; color: var(--theme-ink); background: var(--theme-paper); }
-[data-dark-surface="true"] :is(#viewport, #stage, .model-viewer, .boot-white) { background: var(--theme-paper); color: var(--theme-ink); }
+[data-dark-surface="true"] :is(#viewport, #stage, .model-viewer, .boot-white, .loading) { background: var(--theme-paper); color: var(--theme-ink); }
 [data-dark-surface="true"] :is(.brand, .powered, .workbench, .system-nav, .system-footer, .archive-ui, .detail-ui, .terminal-modal) { color: var(--theme-ink); }
 [data-dark-surface="true"] .scene-atmosphere { background: linear-gradient(180deg, var(--theme-paper), rgba(var(--theme-paper-rgb), .82) 11%, transparent 40%), linear-gradient(0deg, rgba(var(--theme-paper-rgb), .94), transparent 19%), radial-gradient(ellipse at 48% 48%, transparent 35%, rgba(var(--theme-paper-rgb), .38) 85%); }
 [data-dark-surface="true"] .boot-background { background: radial-gradient(ellipse at 51% 48%, var(--theme-panel), var(--theme-paper) 76%); }

@@ -188,24 +188,27 @@ export function motionSettingsMarkup(
   motion: MotionPreferences,
   preset?: MotionPreset,
 ) {
+  const selected = preset ?? motionPresetFor(motion);
+  const presetButton = (value: "full" | "reduced", label: string) =>
+    `<button type="button" data-action="motion-preset" data-preset="${value}" aria-pressed="${selected === value}">${label}</button>`;
+  // 开屏动画只有两档：开启 / 关闭。它不从属于分项自定义，单独放在最上面。
+  const boot = `<label class="motion-setting"><div><strong>BOOT SEQUENCE</strong><span>开屏动画：开启从白场播到欢迎页，关闭则直接进入档案；下次重播生效</span></div><input type="checkbox" data-motion="boot" ${motion.boot ? "checked" : ""}/><i class="toggle"></i></label>`;
   const groups = [
     ...new Set(Object.values(MOTION_LABELS).map((entry) => entry.group)),
   ];
-  const selected = preset ?? motionPresetFor(motion);
-  const presetButton = (value: "full" | "reduced" | "custom", label: string) =>
-    `<button type="button" data-action="motion-preset" data-preset="${value}" aria-pressed="${selected === value}"${value === "custom" ? " disabled" : ""}>${label}</button>`;
-  return `<section id="motion-settings" class="motion-settings" aria-label="动效设置"><div class="motion-settings-head"><div><strong>ANIMATION CONTROLS</strong><span>完整、减少或按分项自定义；关闭后会立即收束当前动画（开场设置下次重播生效）</span></div>${presetButton("full", "完整")}${presetButton("reduced", "减少")}${presetButton("custom", "自定义")}</div><details class="motion-advanced"><summary>精细设置 <span>开场 / 阵列 / 详情 / 界面 / 360° 查看器</span></summary><div class="motion-groups">${groups
-    .map(
-      (group) =>
-        `<fieldset><legend>${group}</legend>${(
-          Object.keys(MOTION_LABELS) as MotionKey[]
-        )
-          .filter((key) => MOTION_LABELS[key].group === group)
-          .map((key) => {
-            const item = MOTION_LABELS[key];
-            return `<label class="motion-setting"><div><strong>${item.title}</strong><span>${item.description}</span></div><input type="checkbox" data-motion="${key}" ${motion[key] ? "checked" : ""}/><i class="toggle"></i></label>`;
-          })
-          .join("")}</fieldset>`,
-    )
-    .join("")}</div></details></section>`;
+  const advanced = groups
+    .map((group) => {
+      const keys = (Object.keys(MOTION_LABELS) as MotionKey[]).filter(
+        (key) => key !== "boot" && MOTION_LABELS[key].group === group,
+      );
+      if (!keys.length) return "";
+      return `<fieldset><legend>${group}</legend>${keys
+        .map((key) => {
+          const item = MOTION_LABELS[key];
+          return `<label class="motion-setting"><div><strong>${item.title}</strong><span>${item.description}</span></div><input type="checkbox" data-motion="${key}" ${motion[key] ? "checked" : ""}/><i class="toggle"></i></label>`;
+        })
+        .join("")}</fieldset>`;
+    })
+    .join("");
+  return `<section id="motion-settings" class="motion-settings" aria-label="动效设置"><div class="motion-settings-head"><div><strong>ANIMATION CONTROLS</strong><span>完整或减少；关闭后会立即收束当前动画</span></div>${presetButton("full", "完整")}${presetButton("reduced", "减少")}</div>${boot}<details class="motion-advanced"><summary>精细设置 <span>阵列 / 详情 / 界面 / 360° 查看器</span></summary><div class="motion-groups">${advanced}</div></details></section>`;
 }
