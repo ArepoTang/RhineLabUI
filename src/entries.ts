@@ -3,16 +3,18 @@ import { dayKey, parseTarget } from "./workbench-state.ts";
 /**
  * 一条条目：锚在某一天上的一段文本。
  *
- * 只有两种格式（2026-10-10 与用户确认）：
+ * 现在有三种格式：
  * - todo（待办）：一天可以多条，任何日期都能改、能勾、能删，时间可选。
  * - log（日志）：一天只有一条，只有正文，过了本日只读（不能改也不能删）。
+ * - report（报告）：周报/月报/年报，锚在期末日（date），周期键放在 period
+ *   （"2026-W42" / "2026-10" / "2026"）。由提示词生成或粘贴而来，可改可删。
  * 旧数据没有 kind 字段，一律当待办。
  *
  * 存储就是本机 IndexedDB，没有导出格式：Android 的 Chrome 与 WebView 都没有
  * showDirectoryPicker()，纯网页拿不到可读写的目录，以文件为真源就必须写原生桥。
  * 代价是清应用数据或换机会丢，需要备份时再加序列化（格式决定很便宜）。
  */
-export type EntryKind = "todo" | "log";
+export type EntryKind = "todo" | "log" | "report";
 
 export type Entry = {
   id: string;
@@ -22,12 +24,23 @@ export type Entry = {
   body: string; // Markdown
   done: boolean;
   kind?: EntryKind;
+  /** 仅报告有：周期键，见 reports.ts 的 weekPeriod / monthPeriod / yearPeriod。 */
+  period?: string;
   created: number;
   updated: number;
 };
 
-export const entryKind = (entry: Entry): EntryKind => (entry.kind === "log" ? "log" : "todo");
+export const entryKind = (entry: Entry): EntryKind =>
+  entry.kind === "log" || entry.kind === "report" ? entry.kind : "todo";
 export const isLog = (entry: Entry) => entryKind(entry) === "log";
+export const isTodo = (entry: Entry) => entryKind(entry) === "todo";
+export const isReport = (entry: Entry) => entryKind(entry) === "report";
+
+/** 某个周期的报告（正常只有一份；导入的数据可能多于一份，取最早的一条）。 */
+export const reportOn = (entries: Entry[], period: string): Entry | undefined =>
+  sortEntries(entries.filter((entry) => isReport(entry) && entry.period === period))[0];
+export const reportsIn = (entries: Entry[], periods: string[]): Entry[] =>
+  periods.map((period) => reportOn(entries, period)).filter((entry): entry is Entry => !!entry);
 
 /** 日志一天一条：取当天那条（导入的数据理论上可能多于一条，用最早的一条）。 */
 export const logOn = (entries: Entry[], date: string): Entry | undefined =>
@@ -54,6 +67,31 @@ export function logsMarkdown(entries: Entry[]): string {
     "",
   ].join("\n");
 }
+
+/**
+ * 导出的档案库：只有日志与周/月/年报告（2026-10-11 用户确认：待办不进去）。
+ * 报告的周期键原样输出（这里不引 reports.ts，避免循环依赖）。
+ */
+export function archiveMarkdown(entries: Entry[]): string {
+  const logs = sortEntries(entries.filter(isLog));
+  const reports = sortEntries(entries.filter(isReport));
+  if (!logs.length && !reports.length) return "";
+  const days = [...logs.map((entry) => entry.date), ...reports.map((entry) => entry.date)].sort();
+  const range = days.length === 1 ? days[0] : `${days[0]} – ${days[days.length - 1]}`;
+  return [
+    "# 莱茵档案库 / RHINE LAB ARCHIVE",
+    "",
+    `共 ${logs.length} 天日志 · ${reports.length} 份报告 · ${range}`,
+    "\n## 日志",
+    ...logs.map((entry) => `\n### ${entry.date}\n\n${entry.body.trim()}`),
+    "\n## 报告",
+    ...reports.map((entry) => `\n### ${entry.period ?? entry.date}\n\n${entry.body.trim()}`),
+    "",
+  ].join("\n");
+}
+
+/** 导出与所有导出相关计数只用这一个口径：日志 + 报告，不含待办。 */
+export const exportedEntries = (entries: Entry[]): Entry[] => entries.filter((entry) => !isTodo(entry));
 
 export const entryTitle = (entry: Entry, fallback = "未命名"): string =>
   entry.title.trim() || entry.body.trim().split("\n")[0]?.replace(/^#+\s*/, "").slice(0, 40) || fallback;
@@ -120,9 +158,15 @@ export const isEntry = (value: unknown): value is Entry => {
     isDayKey(entry.date) &&
     typeof entry.body === "string" &&
     typeof entry.title === "string" &&
-    (entry.kind === undefined || entry.kind === "todo" || entry.kind === "log")
+    (entry.kind === undefined || entry.kind === "todo" || entry.kind === "log" || entry.kind === "report") &&
+    // 报告必须有周期键，否则它既不属于任何一期、也无法导出与重新生成。
+    (entry.kind !== "report" || isPeriod(entry.period))
   );
 };
+
+/** 周期键：2026-W42 / 2026-10 / 2026。 */
+export const isPeriod = (value: unknown): value is string =>
+  typeof value === "string" && /^\d{4}(-W\d{2}|-\d{2})?$/.test(value);
 
 // ---- IndexedDB ------------------------------------------------------------
 const DB_NAME = "rhine-terminal";

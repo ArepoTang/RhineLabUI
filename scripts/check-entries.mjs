@@ -1,9 +1,15 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+  archiveMarkdown,
+  exportedEntries,
   entriesOn,
   entryKind,
+  isEntry,
   isLog,
+  isReport,
+  isTodo,
+  reportOn,
   logLocked,
   logOn,
   logsMarkdown,
@@ -12,6 +18,7 @@ import {
   searchEntries,
   sortEntries,
 } from "../src/entries.ts";
+import { monthPeriod, weekPeriod } from "../src/reports.ts";
 
 const at = (id, date, time, title, body, done = false, kind = "todo") => ({
   id,
@@ -95,7 +102,7 @@ test("日志过了本日只读；待办任何日期都可写", () => {
 });
 
 // ---- 界面 markup（纯函数，可在 Node 里断言）--------------------------------
-const { boardBodyMarkup, editorMarkup, entriesMarkup } = await import("../src/entries-ui.ts");
+const { boardBodyMarkup, editorMarkup, entriesMarkup, reportManualMarkup } = await import("../src/entries-ui.ts");
 
 const board = (over = {}) => ({
   entries: [],
@@ -104,6 +111,7 @@ const board = (over = {}) => ({
   monthAnchor: new Date(2026, 9, 1),
   query: "",
   error: "",
+  reportConfigured: false,
   ...over,
 });
 
@@ -387,25 +395,87 @@ test("导出：只导日志、按日期升序、一天一段，正文原样", ()
   assert.equal(logsMarkdown([at("t", "2026-10-08", "", "", "只有待办")]), "");
 });
 
-test("日历页带导出按钮：有日志时可用并显示天数，没有时禁用", () => {
+test("日历页带导出按钮：数字只数日志与报告（不含待办）", () => {
   const empty = entriesMarkup(board());
   assert.match(empty, /data-action="export-logs"/);
-  assert.match(empty, />导出日志<\/button>/, "按钮文字存在");
+  assert.match(empty, />导出档案库<\/button>/, "按钮文字存在");
   assert.match(empty, /data-action="export-logs" disabled/);
   const filled = entriesMarkup(board({ entries: [log("a", "2026-10-08", "一"), log("b", "2026-10-09", "二")] }));
-  // 「今天」按钮在选中本日时本来就是 disabled，所以只查导出按钮自己
-  assert.match(filled, /data-action="export-logs">导出日志 <span>2<\/span>/, "有日志时不该禁用");
+  assert.match(filled, /data-action="export-logs">导出档案库 <span>2<\/span>/, "有日志时不该禁用");
+  const mixed = entriesMarkup(
+    board({
+      entries: [
+        log("a", "2026-10-08", "一"),
+        at("t1", "2026-10-08", "", "交报告", ""),
+        at("t2", "2026-10-09", "", "打电话", ""),
+        { ...at("r", "2026-10-11", "", "", "上周总结", false, "report"), period: "2026-W41" },
+      ],
+    }),
+  );
+  assert.match(mixed, /data-action="export-logs">导出档案库 <span>2<\/span>/, "2 条待办不算进数字");
+  const onlyTodo = entriesMarkup(board({ entries: [at("t", "2026-10-08", "", "交报告", "")] }));
+  assert.match(onlyTodo, /data-action="export-logs" disabled/, "只有待办时禁用");
 });
 
-test("导出出口：有宿主桥就交给它写文件，没有桥或桥出错就回退浏览器下载", async () => {
-  const { saveViaHost } = await import("../src/host-export.ts");
-  // 浏览器里没有 window.RhineLabExport（Node 里连 window 都没有）
-  assert.equal(saveViaHost("a.md", "x"), "");
-  const calls = [];
-  globalThis.window = { RhineLabExport: { saveLog: (name, text) => { calls.push([name, text]); return " Documents/RhineLab/a.md "; } } };
-  assert.equal(saveViaHost("a.md", "正文"), "Documents/RhineLab/a.md", "返回值要去掉空白");
-  assert.deepEqual(calls, [["a.md", "正文"]]);
-  globalThis.window.RhineLabExport = { saveLog: () => { throw new Error("boom"); } };
-  assert.equal(saveViaHost("a.md", "正文"), "", "宿主抛错不能把导出打断");
-  delete globalThis.window;
+test("日历里的状态位：填了 key 才出现，反映最近过完的一周，而且不是按钮", () => {
+  const off = entriesMarkup(board({ entries: [] }));
+  assert.ok(!off.includes("report-glyph"), "没填 key 时什么都不显示");
+  const on = entriesMarkup(board({ reportConfigured: true }));
+  assert.match(on, /<span class="entry-report-state"><i class="report-glyph" data-state="missing"/);
+  assert.ok(!/data-report-scope|open-report/.test(on), "日历里没有报告按钮，手动档在设置里");
+  // board().today = 2026-10-06（W41 的周二）→ 最近过完的一周是 W40
+  const done = entriesMarkup(
+    board({ reportConfigured: true, entries: [{ ...at("r", "2026-10-04", "", "", "总结", false, "report"), period: "2026-W40" }] }),
+  );
+  assert.match(done, /<i class="report-glyph" data-state="done"/, "上一周有报告时实心");
+  const busy = entriesMarkup(board({ reportConfigured: true, reportBusy: true }));
+  assert.match(busy, /<i class="report-glyph" data-state="busy"/, "生成中是描边态");
+});
+
+test("手动档在设置里：选周期、复制提示词、粘贴存为报告", () => {
+  const panel = reportManualMarkup({ period: "2026-W42", existing: undefined, today: "2026-10-14" });
+  assert.match(panel, /data-action="copy-prompt"/);
+  assert.match(panel, /data-action="save-pasted-report"/);
+  assert.match(panel, /id="report-paste"/);
+  assert.match(panel, /data-report-scope="week" data-report-back="0"/, "本周");
+  assert.match(panel, /data-report-scope="week" data-report-back="1"/, "上周");
+  assert.match(panel, /data-report-scope="month" data-report-back="1"/, "上月");
+  assert.match(panel, /data-report-scope="year" data-report-back="1"/, "去年");
+  assert.match(panel, /2026 年第 42 周/);
+  assert.match(panel, /2026-10-12 至 2026-10-18/);
+  assert.match(panel, /data-state="missing"/, "没有报告时空心");
+  assert.match(panel, /这一期还没有报告/);
+  const existing = { ...at("r", "2026-10-18", "", "", "本周总结\n\n## Done", false, "report"), period: "2026-W42" };
+  const filled = reportManualMarkup({ period: "2026-W42", existing, today: "2026-10-14" });
+  assert.match(filled, /data-state="done"/, "有报告时实心");
+  assert.match(filled, /粘贴会覆盖它/);
+  assert.equal((panel.match(/data-active="true"/g) ?? []).length, 1, "只有当前那一期高亮（本周/上周同属 week，不能两个都亮）");
+  assert.match(panel, /data-report-back="0" data-active="true"/, "2026-10-14 就在 W42，高亮的应是「本周」");
+  const lastWeek = reportManualMarkup({ period: "2026-W41", existing: undefined, today: "2026-10-14" });
+  assert.match(lastWeek, /data-report-back="1" data-active="true"/, "W41 相对 10-14 就是「上周」");
+  assert.equal((lastWeek.match(/data-active="true"/g) ?? []).length, 1);
+  const run = reportManualMarkup({ period: "2026-W42", existing: undefined, today: "2026-10-14", run: { busy: true, status: "生成中 2/5 · 2026-W42" } });
+  assert.match(run, /data-action="cancel-reports"/, "生成中显示取消");
+  assert.match(run, /生成中 2\/5/);
+  const idle = reportManualMarkup({ period: "2026-W42", existing: undefined, today: "2026-10-14", run: { busy: false, status: "" } });
+  assert.match(idle, /data-action="backfill-reports"/, "空闲时是补全缺口");
+});
+
+test("报告编辑器：周期写进标题、正文可改、可删除", () => {
+  const entry = { ...at("r", "2026-10-18", "", "", "总结正文", false, "report"), period: "2026-W42" };
+  const md = editorMarkup(entry, "2026-10-18");
+  assert.match(md, /EDIT REPORT/);
+  assert.match(md, /2026 年第 42 周 · 2026-10-12 至 2026-10-18/);
+  assert.match(md, /<textarea id="entry-body-field"[^>]*>总结正文<\/textarea>/);
+  assert.match(md, /data-action="delete-entry"/, "报告能删（删掉即等于重做）");
+  const missing = editorMarkup(undefined, "2026-10-18", "report");
+  assert.match(missing, /NEW REPORT/);
+  assert.match(missing, /data-action="save-entry"/);
+});
+
+test("日历格子：有报告的那天多一个三角标记", () => {
+  const entries = [{ ...at("r", "2026-10-06", "", "", "总结", false, "report"), period: "2026-W41" }];
+  const body = boardBodyMarkup(board({ entries }));
+  assert.match(body, /entry-mark-report/);
+  assert.match(body, /报告<\/span><span>1 份<\/span>/, "选中日里单列一段报告");
 });

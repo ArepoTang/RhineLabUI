@@ -11,9 +11,11 @@ import "@kitlangton/rolling-number/styles.css";
 import "./style.css";
 import "./quality-settings.css";
 import "./entries.css";
-import { EntriesBoard, boardBodyMarkup, editorMarkup, entriesMarkup } from "./entries-ui";
+import { EntriesBoard, boardBodyMarkup, editorMarkup, entriesMarkup, reportManualMarkup } from "./entries-ui";
 import { loadOperatorId, operatorId, setOperatorId } from "./operator";
 import { saveViaHost } from "./host-export";
+import { appendFacts, anchoredPeriod, backlogPeriods, buildPrompt, bulletLines, compressPrompt, defaultPrompts, lastWeekPeriod, longTermFacts, nextMissingPeriod, periodMaterial, periodRange, periodTitle, type ReportPrompts, type ReportScope } from "./reports";
+import { requestReport } from "./report-run";
 import "./responsive.css";
 import { viewportLayout, openingLayout } from "./viewport-layout";
 import { assetUrl } from "./asset-url";
@@ -50,7 +52,7 @@ import {
 } from "./motion-preferences";
 import { StartupGate } from "./startup";
 import { dayKey } from "./workbench-state";
-import { entryKind, isDayKey, isLog, logLocked, logOn, logsMarkdown, newEntry, removeEntry, saveEntry, type Entry, type EntryKind } from "./entries";
+import { archiveMarkdown, entryKind, exportedEntries, isDayKey, isLog, logLocked, logOn, newEntry, removeEntry, reportOn, saveEntry, type Entry, type EntryKind } from "./entries";
 import { canAdd } from "./boxes";
 import { isWallpaper, wallpaperHost, wallpaperFrame, type WallpaperProperties } from "./wallpaper";
 import "./startup.css";
@@ -124,7 +126,10 @@ let modal: "search" | "saved" | "settings" | "entries" | "entry" | null = null,
 // 弹窗打开时正在编辑的条目；null 表示新建，日期由 editingDate 决定。
 let editingEntryId: string | null = null,
   editingEntryKind: EntryKind = "todo",
-  editingDate = dayKey(new Date());
+  editingDate = dayKey(new Date()),
+  /** 编辑器打开的时刻（新建日志拿它当 created）与正在编辑的报告周期。 */
+  editingOpenedAt: number | null = null,
+  editingPeriod = "";
 const board = new EntriesBoard();
 let activeTab = "overview";
 const reviewParams = new URLSearchParams(location.search);
@@ -164,7 +169,7 @@ function readLocal<T>(key: string, fallback: T): T {
   }
 }
 const saved = new Set<string>(readLocal<string[]>("rhine-saved", []));
-const storedPrefs = readLocal<Partial<{ sound: boolean; music: boolean; soundVolume: number; musicVolume: number; reduced: boolean; quality: boolean; rendering: RenderQuality; superPerformance: boolean; threeOff: boolean; colorTheme: "light" | "dark"; operatorId: string; motion: StoredMotion; motionPreset: MotionPreset }>>("rhine-settings", {});
+const storedPrefs = readLocal<Partial<{ sound: boolean; music: boolean; soundVolume: number; musicVolume: number; reduced: boolean; quality: boolean; rendering: RenderQuality; superPerformance: boolean; threeOff: boolean; colorTheme: "light" | "dark"; operatorId: string; motion: StoredMotion; motionPreset: MotionPreset; reportProvider: string; reportModel: string; reportKey: string; reportMemory: string; reportPrompts: Partial<ReportPrompts>; reportFailures: Record<string, number>; reportMemoryUndo: string }>>("rhine-settings", {});
 const initialMotion = createMotionPreferences(
   storedPrefs.motion,
   storedPrefs.reduced ?? (storedPrefs.motion === undefined
@@ -186,6 +191,16 @@ const prefs = {
   colorTheme: storedPrefs.colorTheme === "dark" ? "dark" : "light",
   // 空字符串 = 这台机器还没确认过身份，首次开屏会先问一次。
   operatorId: storedPrefs.operatorId ?? "",
+  // 报告：地址 / 模型 / key 由用户自己填，key 只在本机 localStorage 里（不进导出文件）。
+  reportProvider: storedPrefs.reportProvider ?? "https://openrouter.ai/api/v1",
+  reportModel: storedPrefs.reportModel ?? "",
+  reportKey: storedPrefs.reportKey ?? "",
+  reportMemory: storedPrefs.reportMemory ?? "",
+  reportPrompts: { ...storedPrefs.reportPrompts } as ReportPrompts,
+  /** 每期连失败次数：到 2 就不再自动重试（手动补缺口仍然可以）。 */
+  reportFailures: { ...storedPrefs.reportFailures } as Record<string, number>,
+  /** 压缩记忆前的一版，供「恢复压缩前」拿回（只留一版）。 */
+  reportMemoryUndo: storedPrefs.reportMemoryUndo ?? "",
 };
 setOperatorId(prefs.operatorId);
 syncOperator();
@@ -632,6 +647,8 @@ function notify(message: string) {
 
 function openModal(kind: NonNullable<typeof modal>) {
   if (!ready) return;
+  // 每次打开设置都把手动档回到本周（面板里再选的周期只在本次打开里有效）。
+  if (kind === "settings") settingsReportPeriod = lastWeekPeriod(dayKey(new Date()));
   if (!modal) {
     previousFocus = document.activeElement as HTMLElement;
     modalSiblings = [...$("#stage").children]
@@ -669,6 +686,8 @@ function closeModal(afterClose?: () => void) {
 }
 function renderModal() {
   if (!modal) return;
+  board.reportConfigured = reportReady();
+  board.reportBusy = reportBusy;
   modalTransition?.dispose();
   $("#modal-root").innerHTML =
     `<div class="modal-backdrop${modal === "entries" ? " entries-backdrop" : ""}"><section class="terminal-modal ${modal === "settings" ? "settings-modal" : modal === "entry" ? "entry-modal" : modal === "entries" ? "entries-modal" : ""}" role="dialog" aria-modal="true" aria-label="${modal === "settings" ? "系统设置" : modal === "entries" ? "待办与日志" : modal === "entry" ? "条目" : modal === "saved" ? "收藏档案" : "档案检索"}"><div class="modal-top"><span>RHINE LAB / ${modal === "settings" ? "SYSTEM PREFERENCES" : modal === "entries" ? "PERSONAL SCHEDULE" : modal === "entry" ? "PERSONAL ENTRY" : "ARCHIVE DIRECTORY"}</span><button data-action="close-modal" aria-label="关闭窗口">CLOSE <span>×</span></button></div>${modal === "settings" ? settingsMarkup() : modal === "entries" ? entriesMarkup(board) : modal === "entry" ? editorMarkup(editingEntryId ? board.entry(editingEntryId) : undefined, editingDate, editingEntryKind) : `<h2>${modal === "saved" ? "SAVED ARCHIVES" : "ARCHIVE INDEX"}<small>${modal === "saved" ? "收藏档案" : "内部档案检索"}</small></h2><div class="search-field"><span>⌕</span><input id="archive-search" type="search" autocomplete="off" placeholder="输入档案编号、名称或科室" aria-label="检索档案"/><span class="key">ESC</span></div><div class="category-filters">${categories.map((c, i) => `<button data-filter="${escapeHtml(c)}" class="${i === 0 ? "active" : ""}">${escapeHtml(c)}</button>`).join("")}</div><div class="result-header"><span>FILE / 档案</span><span>DEPARTMENT / 科室</span><span>ACCESS</span></div><div id="search-results" class="search-results"></div><div class="modal-bottom"><span id="result-count"></span><span>INTERNAL DATABASE <i>●</i> CONNECTED</span></div>`}</section></div>`;
@@ -722,6 +741,213 @@ function updateQualitySummary() {
   const metrics = JSON.parse(canvas.parentElement?.dataset.renderQuality ?? "{}");
   summary.textContent = `${superPerformanceEnabled() ? "超级性能模式已启用 · 画质设置暂被覆盖，关闭后恢复 · " : ""}实际渲染 ${canvas.width} × ${canvas.height} · ${effectiveRenderQuality().antialias === "smaa" ? "SMAA" : "原始抗锯齿"} · 纹理 ${metrics.anisotropy ?? 1}×${metrics.limited ? " · 已达到缓冲上限" : ""}`;
 }
+/** 报告任务的运行状态（同时只允许一个：自动与手动共用）。 */
+let reportBusy = false;
+let reportAbort: AbortController | null = null;
+let reportStatus = "";
+
+const reportReady = () => Boolean(prefs.reportKey.trim() && prefs.reportModel.trim() && prefs.reportProvider.trim());
+
+function paintReportGlyph(): void {
+  const glyph = document.querySelector<HTMLElement>(".entry-report-state .report-glyph");
+  if (glyph) glyph.dataset.state = reportBusy ? "busy" : reportOn(board.entries, lastWeekPeriod(board.today)) ? "done" : "missing";
+}
+
+/** 生成完一期就立刻落盘（提交进程也不会丢），随后刷新日历、盒子与状态位。 */
+async function generatePeriod(period: string, signal: AbortSignal): Promise<void> {
+  const { system, user } = buildPrompt({ entries: board.entries, period, memory: prefs.reportMemory, prompts: prefs.reportPrompts });
+  const body = await requestReport({
+    provider: prefs.reportProvider,
+    model: prefs.reportModel,
+    key: prefs.reportKey,
+    prompt: { system, user },
+    signal,
+  });
+  const existing = reportOn(board.entries, period);
+  const entry: Entry = existing ?? newEntry(periodRange(period).to, Date.now(), "report");
+  entry.kind = "report";
+  entry.period = period;
+  entry.body = body;
+  entry.updated = Date.now();
+  await saveEntry(entry);
+  delete prefs.reportFailures[period];
+  // 模型给的「长期事实候选」只追加进记忆（不会重写你已经手改过的内容）。
+  const { text, added } = appendFacts(prefs.reportMemory, longTermFacts(body));
+  if (added.length) prefs.reportMemory = text;
+  savePrefs();
+  await refreshEntries();
+}
+
+/** 记忆输入框与压缩行的内容（生成中也会自动更新）。 */
+function syncMemoryField(): void {
+  const field = document.querySelector<HTMLTextAreaElement>('[data-report-field="reportMemory"]');
+  if (field && field.value !== prefs.reportMemory) field.value = prefs.reportMemory;
+  const row = document.querySelector("#report-memory-row");
+  if (row) row.innerHTML = reportMemoryRowMarkup();
+}
+
+function reportMemoryRowMarkup(): string {
+  const undo = prefs.reportMemoryUndo.trim();
+  return `<div class="report-actions"><button data-action="compress-memory">压缩记忆</button>${undo ? '<button data-action="undo-memory">恢复压缩前</button>' : ""}</div><span class="report-run-note">压缩会把上面这段交给模型合并去重（不准新增事实）；原文本可用「恢复压缩前」拿回。</span>`;
+}
+
+/** 压缩记忆：只在你按下按钮时发生，结果只存到本机设置里。 */
+async function compressMemory(): Promise<void> {
+  if (reportBusy) return;
+  if (!reportReady()) { notify("先在设置里填服务商地址、模型名和 key"); return; }
+  const before = prefs.reportMemory.trim();
+  if (!before) { notify("长期事实还是空的"); return; }
+  reportBusy = true;
+  reportAbort = new AbortController();
+  reportStatus = "正在压缩记忆…";
+  renderReportManual();
+  try {
+    const compressed = await requestReport({
+      provider: prefs.reportProvider,
+      model: prefs.reportModel,
+      key: prefs.reportKey,
+      prompt: compressPrompt(prefs.reportPrompts.system, before),
+      signal: reportAbort.signal,
+    });
+    const facts = bulletLines(compressed);
+    if (!facts.length) throw new Error("返回里没有条目，记忆未改动");
+    const kept = appendFacts("", facts).text;
+    prefs.reportMemoryUndo = before;
+    prefs.reportMemory = kept;
+    savePrefs();
+    reportStatus = `记忆已压缩：${before.split("\n").filter(Boolean).length} 行 → ${facts.length} 条`;
+  } catch (error) {
+    if (!reportAbort.signal.aborted) {
+      reportStatus = `压缩失败：${error instanceof Error ? error.message : String(error)}`;
+    }
+  } finally {
+    reportBusy = false;
+    reportAbort = null;
+    refreshReportUi();
+  }
+}
+
+function refreshReportUi(): void {
+  if (modal === "entries") { renderEntryBody(); paintReportGlyph(); }
+  if (modal === "settings") { renderReportManual(); syncMemoryField(); }
+}
+
+/**
+ * 自动补一期：完全静默 —— 不弹提示，成功只体现在状态位变实心。
+ * 没填 key、没有缺口、或这一期已经连失败 2 次都不动。
+ */
+async function autoGenerateReport(): Promise<void> {
+  if (reportBusy || !reportReady()) return;
+  const period = nextMissingPeriod(board.entries, board.today);
+  if (!period || (prefs.reportFailures[period] ?? 0) >= 2) return;
+  reportBusy = true;
+  reportAbort = new AbortController();
+  paintReportGlyph();
+  try {
+    await generatePeriod(period, reportAbort.signal);
+    reportStatus = "";
+  } catch (error) {
+    if (!reportAbort.signal.aborted) {
+      prefs.reportFailures[period] = (prefs.reportFailures[period] ?? 0) + 1;
+      savePrefs();
+      reportStatus = `${periodTitle(period)} 生成失败：${error instanceof Error ? error.message : String(error)}`;
+    }
+  } finally {
+    reportBusy = false;
+    reportAbort = null;
+    refreshReportUi();
+  }
+}
+
+/** 手动补全缺口：一期一期串行，带进度、可取消；连续失败 2 次就停手。 */
+async function runBacklog(): Promise<void> {
+  if (reportBusy) return;
+  if (!reportReady()) { notify("先在设置里填服务商地址、模型名和 key"); return; }
+  const queue = backlogPeriods(board.entries, board.today);
+  if (!queue.length) { notify("没有缺的报告"); return; }
+  reportBusy = true;
+  reportAbort = new AbortController();
+  let done = 0;
+  let failed = 0;
+  const paint = () => {
+    reportStatus = reportBusy ? `生成中 ${done}/${queue.length} · ${periodTitle(queue[done] ?? queue[queue.length - 1])}` : reportStatus;
+    refreshReportUi();
+  };
+  paint();
+  try {
+    for (const period of queue) {
+      if (reportAbort.signal.aborted) break;
+      try {
+        await generatePeriod(period, reportAbort.signal);
+        done += 1;
+        failed = 0;
+      } catch (error) {
+        if (reportAbort.signal.aborted) break;
+        prefs.reportFailures[period] = (prefs.reportFailures[period] ?? 0) + 1;
+        savePrefs();
+        failed += 1;
+        reportStatus = `${periodTitle(period)} 失败：${error instanceof Error ? error.message : String(error)}`;
+        refreshReportUi();
+        if (failed >= 2) { reportStatus += "（连续两次失败，已停手）"; break; }
+      }
+      paint();
+    }
+  } finally {
+    const cancelled = reportAbort.signal.aborted;
+    reportBusy = false;
+    reportAbort = null;
+    if (cancelled) reportStatus = `已取消（完成 ${done}/${queue.length}）`;
+    else if (!reportStatus.includes("失败")) reportStatus = `已完成 ${done} 期`;
+    refreshReportUi();
+  }
+}
+
+/** 设置里手动档的当前周期，默认本周（每次打开设置都会重置）。 */
+let settingsReportPeriod = lastWeekPeriod(dayKey(new Date()));
+
+function reportManualHtml(): string {
+  return reportManualMarkup({
+    period: settingsReportPeriod,
+    existing: reportOn(board.entries, settingsReportPeriod),
+    today: dayKey(new Date()),
+    run: { busy: reportBusy, status: reportStatus },
+  });
+}
+
+/** 只换手动档那一块，不重渲染整个设置弹窗（否则折叠区会被收起）。 */
+function renderReportManual(): void {
+  const host = document.querySelector("#report-manual");
+  if (host) host.innerHTML = reportManualHtml();
+}
+
+/** 报告设置：地址 / 模型 / key + 手动档（复制提示词 / 粘贴结果）+ 长期事实 + 提示词。 */
+function reportSettingsMarkup() {
+  const field = (key: string, label: string, value: string, type = "text") =>
+    `<label class="settings-report-field"><span>${label}</span><input type="${type}" data-report-field="${key}" autocomplete="off" spellcheck="false" value="${escapeHtml(value)}"/></label>`;
+  const prompts = ([
+    ["system", "SYSTEM 提示词"],
+    ["week", "周报模板"],
+    ["month", "月报模板"],
+    ["year", "年报模板"],
+  ] as const)
+    .map(
+      ([key, label]) =>
+        `<label class="settings-report-field"><span>${label}</span><textarea data-report-field="prompt-${key}" rows="6" spellcheck="false">${escapeHtml(prefs.reportPrompts[key] ?? "")}</textarea><small>留空则用默认；变量：{{period}} {{from}} {{to}} {{memory}} {{material}} {{todos}} {{stats}}</small></label>`,
+    )
+    .join("");
+  return `<details class="settings-reports"><summary>报告<small>周报 · 月报 · 年报</small></summary><div class="settings-report-body">${field("reportProvider", "服务商地址", prefs.reportProvider, "url")}${field("reportModel", "模型名", prefs.reportModel)}${field("reportKey", "API key", prefs.reportKey, "password")}<p class="settings-report-note">填了 key 就在打开日历时静默补上一期，不弹提示；填时把这一期的日志与待办正文发到上面的地址。没填 key 就用下面的手动档。key 只存在这台设备里，不随导出文件走。</p><div id="report-manual">${reportManualHtml()}</div><label class="settings-report-field"><span>长期事实</span><textarea data-report-field="reportMemory" rows="6" spellcheck="false" placeholder="每期都会附给模型的固定背景；报告里的「长期事实候选」会自动追加到这里">${escapeHtml(prefs.reportMemory)}</textarea></label><div id="report-memory-row" class="report-run">${reportMemoryRowMarkup()}</div><details class="settings-prompts"><summary>提示词<small>默认英文，输出跟随日志语言</small></summary>${prompts}<div class="settings-report-actions"><button data-action="restore-prompts">恢复默认提示词</button></div></details></div></details>`;
+}
+
+/** 复制到剪贴板（WebView 与浏览器都是安全上下文，失败时告知可以手选）。 */
+async function copyText(text: string): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function motionPreferenceNoteMarkup() {
   const preset = prefs.motionPreset;
   const allEnabled = Object.values(prefs.motion).every(Boolean);
@@ -742,6 +968,9 @@ function openEntryEditor(date: string, id?: string, kind: EntryKind = "todo") {
   editingEntryId = id ?? null;
   editingEntryKind = kind;
   editingDate = date;
+  // 点开编辑器的时刻：新建日志时用它当 created（作息统计用），而非保存时刻。
+  editingOpenedAt = Date.now();
+  if (kind !== "report") editingPeriod = "";
   openModal("entry");
 }
 /** 读取日志（盒子只装日志）并把阵列内容重建。任何改动条目之后都要走这里。 */
@@ -750,7 +979,11 @@ function refreshEntries() {
 }
 /** 日历是编辑器唯一入口，保存/删除后回到日历。 */
 function reopenEntries() {
-  void refreshEntries().then(() => openModal("entries"));
+  void refreshEntries().then(() => {
+    openModal("entries");
+    // 打开日历时静默补一期（没 key / 没缺口 / 已连续失败就不动）。
+    void autoGenerateReport();
+  });
 }
 function renderEntryBody() {
   const body = document.querySelector("#entry-body");
@@ -767,12 +1000,16 @@ function editorValues(): { date: string; time: string; title: string; body: stri
   };
 }
 function settingsMarkup() {
-  return `<h2>SYSTEM SETTINGS<small>终端偏好设置</small></h2><p class="settings-intro">${operatorId} <span>·</span> SESSION AUTHORIZED</p><div class="settings-identity"><div><strong>操作员 ID</strong><span>开场身份确认、页脚与日志署名；留空恢复 JOYCE MOORE</span></div><input id="operator-id" type="text" maxlength="24" autocomplete="off" spellcheck="false" value="${escapeHtml(operatorId)}"/></div>${isWallpaper ? '<p class="wallpaper-settings-note">每次启动都会读取 Wallpaper Engine 中的设置。在此修改仅对当前运行生效，无法持久保存；如需保留，请在 Wallpaper Engine 的壁纸属性中调整。</p>' : ""}<div class="settings-list">${themeSettingsMarkup(prefs.colorTheme === "dark")}${!isWallpaper ? `<label><div><strong>SUPER PERFORMANCE</strong><span>降低三维画质和渲染分辨率，保留完整动效；关闭后恢复原画质</span></div><input type="checkbox" data-pref="superPerformance" ${prefs.superPerformance ? "checked" : ""}/><i class="toggle"></i></label>` : ""}${workbench?.settingsMarkup() ?? ""}${audioSettingsMarkup(prefs)}<label><div><strong>三维档案</strong><span>关闭后卸载三维模型，只保留平面界面；重新开启会重新载入模型</span></div><input type="checkbox" id="three-pref" ${threeState === "on" ? "checked" : ""}/><i class="toggle"></i></label></div>${motionPreferenceNoteMarkup()}${motionSettingsMarkup(prefs.motion, prefs.motionPreset)}${qualityMarkup(prefs.rendering)}<div class="settings-shortcuts">${isWallpaper ? '<span>DESKTOP CONTROLS</span><p>拖动阵列或点击界面按钮浏览档案。桌面模式下，方向键与滚轮可能无法传入壁纸。</p>' : '<span>KEYBOARD CONTROLS</span><p><kbd>←</kbd><kbd>→</kbd> 切列 <kbd>↑</kbd><kbd>↓</kbd> 选档 <kbd>ENTER</kbd> 读取 <kbd>/</kbd> 检索 <kbd>ESC</kbd> 返回</p>'}</div><div class="settings-bottom"><button data-action="restart">REINITIALIZE SYSTEM <span>↻</span></button></div><div class="modal-bottom"><span>ANALYSIS OS / 1.0 · 使用 MiSans 字体（小米） <a href="${assetUrl("fonts/MiSans-license.pdf")}" target="_blank" rel="noopener">字体许可</a></span><span>POWERED BY RHINE LAB</span></div>`;
+  return `<h2>SYSTEM SETTINGS<small>终端偏好设置</small></h2><p class="settings-intro">${operatorId} <span>·</span> SESSION AUTHORIZED</p><div class="settings-identity"><div><strong>操作员 ID</strong><span>开场身份确认、页脚与日志署名；留空恢复 JOYCE MOORE</span></div><input id="operator-id" type="text" maxlength="24" autocomplete="off" spellcheck="false" value="${escapeHtml(operatorId)}"/></div>${isWallpaper ? '<p class="wallpaper-settings-note">每次启动都会读取 Wallpaper Engine 中的设置。在此修改仅对当前运行生效，无法持久保存；如需保留，请在 Wallpaper Engine 的壁纸属性中调整。</p>' : ""}<div class="settings-list">${themeSettingsMarkup(prefs.colorTheme === "dark")}${!isWallpaper ? `<label><div><strong>SUPER PERFORMANCE</strong><span>降低三维画质和渲染分辨率，保留完整动效；关闭后恢复原画质</span></div><input type="checkbox" data-pref="superPerformance" ${prefs.superPerformance ? "checked" : ""}/><i class="toggle"></i></label>` : ""}${workbench?.settingsMarkup() ?? ""}${audioSettingsMarkup(prefs)}<label><div><strong>三维档案</strong><span>关闭后卸载三维模型，只保留平面界面；重新开启会重新载入模型</span></div><input type="checkbox" id="three-pref" ${threeState === "on" ? "checked" : ""}/><i class="toggle"></i></label></div>${motionPreferenceNoteMarkup()}${motionSettingsMarkup(prefs.motion, prefs.motionPreset)}${isWallpaper ? "" : reportSettingsMarkup()}${qualityMarkup(prefs.rendering)}<div class="settings-shortcuts">${isWallpaper ? '<span>DESKTOP CONTROLS</span><p>拖动阵列或点击界面按钮浏览档案。桌面模式下，方向键与滚轮可能无法传入壁纸。</p>' : '<span>KEYBOARD CONTROLS</span><p><kbd>←</kbd><kbd>→</kbd> 切列 <kbd>↑</kbd><kbd>↓</kbd> 选档 <kbd>ENTER</kbd> 读取 <kbd>/</kbd> 检索 <kbd>ESC</kbd> 返回</p>'}</div><div class="settings-bottom"><button data-action="restart">REINITIALIZE SYSTEM <span>↻</span></button></div><div class="modal-bottom"><span>ANALYSIS OS / 1.0 · 使用 MiSans 字体（小米） <a href="${assetUrl("fonts/MiSans-license.pdf")}" target="_blank" rel="noopener">字体许可</a></span><span>POWERED BY RHINE LAB</span></div>`;
 }
 
 document.addEventListener("input", (e) => {
   const quick = e.target as HTMLInputElement;
-  if (quick.id === "entry-search") { board.query = quick.value; renderEntryBody(); return; }
+  if (quick.id === "entry-search") {
+    board.query = quick.value;
+    renderEntryBody();
+    return;
+  }
   const slider = e.target as HTMLInputElement;
   if (slider.dataset.quality) {
     const output = document.querySelector<HTMLOutputElement>(`[data-quality-output="${slider.dataset.quality}"]`);
@@ -801,6 +1038,23 @@ document.addEventListener("change", (e) => {
     savePrefs();
   }
   if (el.id === "operator-id") { applyOperatorId(el.value); return; }
+  if (el.dataset.reportField) {
+    const key = el.dataset.reportField;
+    if (key === "reportProvider") prefs.reportProvider = el.value.trim();
+    else if (key === "reportModel") prefs.reportModel = el.value.trim();
+    else if (key === "reportKey") prefs.reportKey = el.value.trim();
+    else if (key === "reportMemory") prefs.reportMemory = el.value;
+    else if (key.startsWith("prompt-")) prefs.reportPrompts[key.slice("prompt-".length) as keyof ReportPrompts] = el.value;
+    // 换了地址/模型/key 就是换了服务商，旧的失败计数会变成无端封锁自动生成。
+    if (key === "reportProvider" || key === "reportModel" || key === "reportKey") {
+      prefs.reportFailures = {};
+      reportStatus = "";
+      board.reportConfigured = reportReady();
+      renderReportManual();
+    }
+    savePrefs();
+    return;
+  }
   if (el.dataset.pref) {
     const key = el.dataset.pref;
     if (key === "sound" || key === "music" || key === "quality" || key === "superPerformance") prefs[key] = el.checked;
@@ -881,13 +1135,31 @@ document.addEventListener("click", (e) => {
     // 日志过日只读：不能改、也不能删（列表里也不给入口，这里再挡一次）。
     if (existing && logLocked(existing, board.today)) { notify("这天的日志已归档，只读的"); return; }
     const kind: EntryKind = existing ? entryKind(existing) : editingEntryKind;
+    if (kind === "report") {
+      if (action === "delete-entry") {
+        if (!id) return;
+        void removeEntry(id).then(() => closeModal(() => { notify("报告已删除"); reopenEntries(); }));
+        return;
+      }
+      const period = existing?.period ?? editingPeriod;
+      const body = (document.querySelector<HTMLTextAreaElement>("#entry-body-field")?.value ?? "").trim();
+      if (!period) { notify("没有选定周期"); return; }
+      if (!body) { notify("空报告没有保存"); return; }
+      const entry: Entry = existing ? { ...existing } : newEntry(periodRange(period).to, Date.now(), "report");
+      entry.kind = "report";
+      entry.period = period;
+      entry.body = body;
+      entry.updated = Date.now();
+      void saveEntry(entry).then(() => closeModal(() => { notify(existing ? "报告已更新" : "报告已保存"); reopenEntries(); }));
+      return;
+    }
     if (kind === "log") {
       if (action === "delete-entry") { notify("日志不能删除"); return; }
       // 盒子只装日志，1600 条封顶（≈4 年日更；到顶后只能清本机数据重来）。
       if (!existing && !canAdd(board.entries.filter(isLog).length)) { notify("日志盒子已满（1600 条）"); return; }
       const body = (document.querySelector<HTMLTextAreaElement>("#entry-body-field")?.value ?? "").replace(/\s+$/, "");
       if (!body) { notify("空日志没有保存"); return; }
-      const entry: Entry = existing ? { ...existing } : newEntry(board.today, Date.now(), "log");
+      const entry: Entry = existing ? { ...existing } : newEntry(board.today, editingOpenedAt ?? Date.now(), "log");
       entry.kind = "log";
       entry.body = body;
       entry.updated = Date.now();
@@ -914,18 +1186,79 @@ document.addEventListener("click", (e) => {
   }
   if (action === "entries") { reopenEntries(); return; }
   if (action === "export-logs") {
-    // 方案 3：不碰系统文件夹，一次把全部日志写成一个 Markdown 文件。
+    // 方案 3：不碰系统文件夹，一次把整个档案库写成一个 Markdown。
+    // 只包括日志与周/月/年报告，待办不进去；计数也走同一个口径。
     // APK 里有原生桥 → 写进 Documents/RhineLab；浏览器里 → 交给下载。
-    const logs = board.entries.filter(isLog);
-    if (!logs.length) { notify("还没有日志可以导出"); return; }
-    const name = `rhine-labs-${dayKey(new Date())}.md`;
-    const path = saveViaHost(name, logsMarkdown(logs));
-    if (path) notify(`${logs.length} 天日志已写入 ${path}`);
+    const items = exportedEntries(board.entries);
+    if (!items.length) { notify("还没有日志或报告可以导出"); return; }
+    const name = `rhine-archive-${dayKey(new Date())}.md`;
+    const text = archiveMarkdown(items);
+    const path = saveViaHost(name, text);
+    if (path) notify(`${items.length} 条已写入 ${path}`);
     else {
-      downloadText(name, logsMarkdown(logs));
-      notify(`已导出 ${logs.length} 天日志`);
+      downloadText(name, text);
+      notify(`已导出 ${items.length} 条`);
     }
     audio.play("confirm");
+    return;
+  }
+  if (el.dataset.reportScope) {
+    settingsReportPeriod = anchoredPeriod(el.dataset.reportScope as ReportScope, Number(el.dataset.reportBack ?? 0), dayKey(new Date()));
+    renderReportManual();
+    audio.play("ui-tick");
+    return;
+  }
+  if (action === "copy-prompt") {
+    const period = settingsReportPeriod;
+    const material = periodMaterial(board.entries, period);
+    if (!material.logs.length && !material.todos.length) { notify("这一期还没有日志和待办"); return; }
+    const { text } = buildPrompt({ entries: board.entries, period, memory: prefs.reportMemory, prompts: prefs.reportPrompts });
+    void copyText(text).then((ok) =>
+      notify(ok ? `已复制 ${periodTitle(period)} 的提示词，粘到任意模型里` : "复制失败，请手动选中复制"),
+    );
+    audio.play("confirm");
+    return;
+  }
+  if (action === "save-pasted-report") {
+    const period = settingsReportPeriod;
+    const body = (document.querySelector<HTMLTextAreaElement>("#report-paste")?.value ?? "").trim();
+    if (!body) { notify("先把模型输出的正文粘上来"); return; }
+    const existing = reportOn(board.entries, period);
+    const entry: Entry = existing ?? newEntry(periodRange(period).to, Date.now(), "report");
+    entry.kind = "report";
+    entry.period = period;
+    entry.body = body;
+    entry.updated = Date.now();
+    void saveEntry(entry)
+      .then(() => {
+        notify(existing ? `${periodTitle(period)} 已更新` : `${periodTitle(period)} 已存为报告`);
+        return refreshEntries();
+      })
+      .then(renderReportManual);
+    return;
+  }
+  if (action === "backfill-reports") { void runBacklog(); return; }
+  if (action === "cancel-reports") {
+    reportAbort?.abort();
+    reportStatus = "已取消";
+    renderReportManual();
+    return;
+  }
+  if (action === "compress-memory") { void compressMemory(); return; }
+  if (action === "undo-memory") {
+    if (!prefs.reportMemoryUndo.trim()) return;
+    prefs.reportMemory = prefs.reportMemoryUndo;
+    prefs.reportMemoryUndo = "";
+    savePrefs();
+    syncMemoryField();
+    notify("已恢复压缩前的记忆");
+    return;
+  }
+  if (action === "restore-prompts") {
+    prefs.reportPrompts = { ...defaultPrompts };
+    savePrefs();
+    renderModal();
+    notify("已恢复默认提示词");
     return;
   }
   if (el.dataset.entryDay !== undefined) { board.selectDay(el.dataset.entryDay); renderEntryBody(); return; }
@@ -941,6 +1274,11 @@ document.addEventListener("click", (e) => {
   }
   if (el.dataset.entryOpen !== undefined) {
     const found = board.entry(el.dataset.entryOpen);
+    if (found && entryKind(found) === "report") {
+      editingPeriod = found.period ?? "";
+      openEntryEditor(found.date, found.id, "report");
+      return;
+    }
     if (found && logLocked(found, board.today)) { notify("这天的日志已归档，只读的"); return; }
     openEntryEditor(found?.date ?? board.selectedDay, el.dataset.entryOpen, found ? entryKind(found) : "todo");
     return;

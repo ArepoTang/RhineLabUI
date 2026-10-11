@@ -38,6 +38,8 @@
 .entry-mark { width: 4px; height: 4px; background: currentColor; opacity: .5; }
 .entry-mark-todo { border-radius: 50%; }
 .entry-mark-log { width: 6px; height: 3px; }
+/* 报告：三角，与待办（圆点）、日志（横条）分开，盒子列表里不加图形只靠标题 */
+.entry-mark-report { width: 0; height: 0; background: none; border-left: 3px solid transparent; border-right: 3px solid transparent; border-bottom: 5px solid currentColor; }
 .entry-day[aria-pressed="true"] .entry-mark { opacity: .85; }
 
 /* 日志块：本日可编辑，过日只读（只给正文，不给入口） */
@@ -47,6 +49,49 @@
 .entry-log-note { display: block; margin-top: 12px; font-size: 11px; letter-spacing: 1px; color: var(--theme-line, #a6a49c); }
 .entry-edit { min-height: 38px; margin-top: 14px; padding: 0 14px; border: 1px solid var(--theme-line, #a6a49c); font-size: 12px; }
 .entry-log-glyph { color: var(--theme-line, #a6a49c); }
+.entry-report-glyph { color: var(--theme-line, #a6a49c); font-size: 11px; }
+
+/* 几何状态位：实心=本期已完成、空心=缺失、生成中=逐段描边（减少动态效果时停在实心点上）。
+   不带任何文字，问的就是“这一期到底有没有”。 */
+/* 几何状态位：填了 key 才出现，只是静默生成的进度指示，不是按钮。 */
+.entry-report-state { flex: none; display: grid; place-items: center; width: 41px; min-height: 41px; border: 1px solid var(--theme-line, #bdb8ad); }
+.report-glyph { display: block; width: 9px; height: 9px; border: 1px solid var(--theme-ink, #080a08); }
+.report-glyph[data-state="done"] { background: var(--theme-ink, #080a08); }
+.report-glyph[data-state="missing"] { background: none; }
+.report-glyph[data-state="busy"] { background: none; animation: report-sweep 1.2s linear infinite; }
+@keyframes report-sweep {
+  0% { box-shadow: inset 0 0 0 0 var(--theme-ink, #080a08); }
+  50% { box-shadow: inset 0 -4px 0 0 var(--theme-ink, #080a08); }
+  100% { box-shadow: inset 0 0 0 4px var(--theme-ink, #080a08); }
+}
+
+/* 手动档（设置里的报告栏）：选周期、复制提示词、把模型输出粘回来 */
+.report-manual { display: grid; gap: 12px; padding: 12px 0; border-top: 1px solid var(--theme-line, #bdb8ad); border-bottom: 1px solid var(--theme-line, #bdb8ad); }
+.report-scopes { display: flex; flex-wrap: wrap; gap: 8px; }
+.report-scopes button { min-height: 34px; padding: 0 12px; border: 1px solid var(--theme-line, #bdb8ad); font-size: 12px; }
+.report-scopes button[data-active="true"] { color: var(--theme-paper, #ece9e4); background: var(--theme-ink, #080a08); border-color: var(--theme-ink, #080a08); }
+.report-head { display: flex; align-items: baseline; gap: 10px; margin: 6px 0 0; }
+.report-head strong { font-size: 16px; }
+.report-head span { font-size: 12px; color: var(--theme-muted, #77756d); }
+.report-actions { display: flex; gap: 10px; margin: 0; }
+.report-actions button { min-height: 40px; padding: 0 16px; border: 1px solid var(--theme-line, #a6a49c); font-size: 13px; }
+.report-primary { color: var(--theme-paper, #ece9e4); background: var(--theme-ink, #080a08); border-color: var(--theme-ink, #080a08); }
+.report-paste textarea { font-size: 13px; }
+.report-preview { max-height: 160px; margin: 10px 0 0; padding: 12px; overflow: auto; font: inherit; font-size: 12px; line-height: 1.9; white-space: pre-wrap; color: var(--theme-muted, #5f5d55); background: var(--theme-field, #ece9e4); border: 1px solid var(--theme-line, #bdb8ad); }
+
+/* 设置里的报告栏（折叠，不挤占原有设置长度） */
+.settings-reports { margin: 22px 0 0; border-top: 1px solid var(--theme-line, #bdb8ad); }
+.settings-reports > summary { display: flex; gap: 10px; align-items: baseline; padding: 14px 0; font-size: 13px; cursor: pointer; }
+.settings-reports > summary small, .settings-prompts > summary small { color: var(--theme-muted, #77756d); }
+.settings-report-body { display: grid; gap: 14px; padding: 4px 0 18px; }
+.settings-report-field { display: grid; gap: 6px; font-size: 12px; color: var(--theme-muted, #77756d); }
+.settings-report-field input, .settings-report-field textarea { width: 100%; padding: 10px 12px; font: inherit; font-size: 13px; color: var(--theme-ink, #080a08); background: var(--theme-field, #ece9e4); border: 1px solid var(--theme-line, #bdb8ad); }
+.settings-report-field small { font-size: 11px; line-height: 1.7; }
+.settings-report-note { font-size: 11px; line-height: 1.8; color: var(--theme-muted, #77756d); }
+.settings-prompts > summary { padding: 12px 0; font-size: 12px; cursor: pointer; }
+.settings-prompts { display: grid; gap: 14px; }
+.settings-report-actions { display: flex; justify-content: flex-end; }
+.settings-report-actions button { min-height: 36px; padding: 0 14px; border: 1px solid var(--theme-line, #a6a49c); font-size: 12px; }
 
 /* 列表 */
 .entry-list-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 22px 0 6px; padding-top: 12px; border-top: 1px solid var(--theme-line, #aaa59a); font-size: 12px; color: var(--theme-muted, #77756d); }
@@ -88,3 +133,11 @@
 .box-entries button span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .box-entries button i { color: var(--theme-line, #a6a49c); font-style: normal; }
 .box-empty { font-size: 12px; line-height: 1.9; color: var(--theme-muted, #77756d); }
+
+/* 手动补全缺口：一行状态 + 按钮（生成中变取消） */
+.report-run { display: flex; align-items: center; gap: 10px; }
+.report-run button { min-height: 34px; padding: 0 14px; border: 1px solid var(--theme-line, #a6a49c); font-size: 12px; }
+.report-run span { min-width: 0; font-size: 11px; line-height: 1.7; color: var(--theme-muted, #77756d); overflow-wrap: anywhere; }
+
+/* 压缩记忆那一行：按钮 + 说明 */
+.report-run-note { font-size: 11px; line-height: 1.8; color: var(--theme-muted, #77756d); }

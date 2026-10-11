@@ -19,7 +19,8 @@
     "build:cloudflare": "npm run build && node scripts/package-cloudflare.mjs",
     "build:wallpaper": "node scripts/patch-rolling-number.mjs && node scripts/export-records.mjs && tsc && vite build --mode wallpaper --outDir release/wallpaper && node scripts/build-wallpaper.mjs",
     "format": "prettier --write src scripts index.html package.json tsconfig.json",
-    "preview": "vite preview --host 127.0.0.1"
+    "preview": "vite preview --host 127.0.0.1",
+    "check:reports": "node --experimental-strip-types --test scripts/check-reports.mjs"
   },
   "dependencies": {
     "@kitlangton/rolling-number": "0.4.1",
@@ -32,4 +33,3 @@
     "vite": "^7.3.1"
   }
 }
-
