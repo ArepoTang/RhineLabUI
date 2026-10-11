@@ -11,6 +11,7 @@ import "@kitlangton/rolling-number/styles.css";
 import "./style.css";
 import "./quality-settings.css";
 import "./entries.css";
+import "./markdown.css";
 import { EntriesBoard, boardBodyMarkup, editorMarkup, entriesMarkup, reportManualMarkup } from "./entries-ui";
 import { loadOperatorId, operatorId, setOperatorId } from "./operator";
 import { saveViaHost } from "./host-export";
@@ -52,6 +53,7 @@ import {
 } from "./motion-preferences";
 import { StartupGate } from "./startup";
 import { dayKey } from "./workbench-state";
+import { renderMarkdown } from "./markdown";
 import { archiveMarkdown, entryKind, exportedEntries, isDayKey, isLog, logLocked, logOn, newEntry, removeEntry, reportOn, saveEntry, type Entry, type EntryKind } from "./entries";
 import { canAdd } from "./boxes";
 import { isWallpaper, wallpaperHost, wallpaperFrame, type WallpaperProperties } from "./wallpaper";
@@ -684,13 +686,21 @@ function closeModal(afterClose?: () => void) {
     afterClose?.();
   });
 }
+/** 日志与报告用日历那套全屏规则（entries-modal / entries-backdrop）铺满整屏；待办仍是小卡片。 */
+function entryIsFullScreen(): boolean {
+  const entry = editingEntryId ? board.entry(editingEntryId) : undefined;
+  const kind = entry ? entryKind(entry) : editingEntryKind;
+  return kind !== "todo";
+}
+
 function renderModal() {
   if (!modal) return;
   board.reportConfigured = reportReady();
   board.reportBusy = reportBusy;
   modalTransition?.dispose();
   $("#modal-root").innerHTML =
-    `<div class="modal-backdrop${modal === "entries" ? " entries-backdrop" : ""}"><section class="terminal-modal ${modal === "settings" ? "settings-modal" : modal === "entry" ? "entry-modal" : modal === "entries" ? "entries-modal" : ""}" role="dialog" aria-modal="true" aria-label="${modal === "settings" ? "系统设置" : modal === "entries" ? "待办与日志" : modal === "entry" ? "条目" : modal === "saved" ? "收藏档案" : "档案检索"}"><div class="modal-top"><span>RHINE LAB / ${modal === "settings" ? "SYSTEM PREFERENCES" : modal === "entries" ? "PERSONAL SCHEDULE" : modal === "entry" ? "PERSONAL ENTRY" : "ARCHIVE DIRECTORY"}</span><button data-action="close-modal" aria-label="关闭窗口">CLOSE <span>×</span></button></div>${modal === "settings" ? settingsMarkup() : modal === "entries" ? entriesMarkup(board) : modal === "entry" ? editorMarkup(editingEntryId ? board.entry(editingEntryId) : undefined, editingDate, editingEntryKind) : `<h2>${modal === "saved" ? "SAVED ARCHIVES" : "ARCHIVE INDEX"}<small>${modal === "saved" ? "收藏档案" : "内部档案检索"}</small></h2><div class="search-field"><span>⌕</span><input id="archive-search" type="search" autocomplete="off" placeholder="输入档案编号、名称或科室" aria-label="检索档案"/><span class="key">ESC</span></div><div class="category-filters">${categories.map((c, i) => `<button data-filter="${escapeHtml(c)}" class="${i === 0 ? "active" : ""}">${escapeHtml(c)}</button>`).join("")}</div><div class="result-header"><span>FILE / 档案</span><span>DEPARTMENT / 科室</span><span>ACCESS</span></div><div id="search-results" class="search-results"></div><div class="modal-bottom"><span id="result-count"></span><span>INTERNAL DATABASE <i>●</i> CONNECTED</span></div>`}</section></div>`;
+    `<div class="modal-backdrop${modal === "entries" ? " entries-backdrop" : modal === "entry" && entryIsFullScreen() ? " entries-backdrop editor-backdrop" : ""}"><section class="terminal-modal ${modal === "settings" ? "settings-modal" : modal === "entry" ? (entryIsFullScreen() ? "entry-modal entries-modal editor-full" : "entry-modal") : modal === "entries" ? "entries-modal" : ""}" role="dialog" aria-modal="true" aria-label="${modal === "settings" ? "系统设置" : modal === "entries" ? "待办与日志" : modal === "entry" ? "条目" : modal === "saved" ? "收藏档案" : "档案检索"}"><div class="modal-top"><span>RHINE LAB / ${modal === "settings" ? "SYSTEM PREFERENCES" : modal === "entries" ? "PERSONAL SCHEDULE" : modal === "entry" ? "PERSONAL ENTRY" : "ARCHIVE DIRECTORY"}</span><button data-action="close-modal" aria-label="关闭窗口">CLOSE <span>×</span></button></div>${modal === "settings" ? settingsMarkup() : modal === "entries" ? entriesMarkup(board) : modal === "entry" ? editorMarkup(editingEntryId ? board.entry(editingEntryId) : undefined, editingDate, editingEntryKind) : `<h2>${modal === "saved" ? "SAVED ARCHIVES" : "ARCHIVE INDEX"}<small>${modal === "saved" ? "收藏档案" : "内部档案检索"}</small></h2><div class="search-field"><span>⌕</span><input id="archive-search" type="search" autocomplete="off" placeholder="输入档案编号、名称或科室" aria-label="检索档案"/><span class="key">ESC</span></div><div class="category-filters">${categories.map((c, i) => `<button data-filter="${escapeHtml(c)}" class="${i === 0 ? "active" : ""}">${escapeHtml(c)}</button>`).join("")}</div><div class="result-header"><span>FILE / 档案</span><span>DEPARTMENT / 科室</span><span>ACCESS</span></div><div id="search-results" class="search-results"></div><div class="modal-bottom"><span id="result-count"></span><span>INTERNAL DATABASE <i>●</i> CONNECTED</span></div>`}</section></div>`;
+  if (modal === "settings") applyGroupState($("#modal-root"));
   const backdrop = $(".modal-backdrop");
   backdrop.hidden = true;
   modalTransition = new SurfaceTransition(backdrop, $(".terminal-modal"));
@@ -788,7 +798,7 @@ function syncMemoryField(): void {
 
 function reportMemoryRowMarkup(): string {
   const undo = prefs.reportMemoryUndo.trim();
-  return `<div class="report-actions"><button data-action="compress-memory">压缩记忆</button>${undo ? '<button data-action="undo-memory">恢复压缩前</button>' : ""}</div><span class="report-run-note">压缩会把上面这段交给模型合并去重（不准新增事实）；原文本可用「恢复压缩前」拿回。</span>`;
+  return `<div class="report-actions"><button data-action="compress-memory">压缩记忆</button>${undo ? '<button data-action="undo-memory">恢复压缩前</button>' : ""}</div>`;
 }
 
 /** 压缩记忆：只在你按下按钮时发生，结果只存到本机设置里。 */
@@ -932,10 +942,10 @@ function reportSettingsMarkup() {
   ] as const)
     .map(
       ([key, label]) =>
-        `<label class="settings-report-field"><span>${label}</span><textarea data-report-field="prompt-${key}" rows="6" spellcheck="false">${escapeHtml(prefs.reportPrompts[key] ?? "")}</textarea><small>留空则用默认；变量：{{period}} {{from}} {{to}} {{memory}} {{material}} {{todos}} {{stats}}</small></label>`,
+        `<label class="settings-report-field"><span>${label}</span><textarea data-report-field="prompt-${key}" rows="6" spellcheck="false">${escapeHtml(prefs.reportPrompts[key] ?? "")}</textarea></label>`,
     )
     .join("");
-  return `<details class="settings-reports"><summary>报告<small>周报 · 月报 · 年报</small></summary><div class="settings-report-body">${field("reportProvider", "服务商地址", prefs.reportProvider, "url")}${field("reportModel", "模型名", prefs.reportModel)}${field("reportKey", "API key", prefs.reportKey, "password")}<p class="settings-report-note">填了 key 就在打开日历时静默补上一期，不弹提示；填时把这一期的日志与待办正文发到上面的地址。没填 key 就用下面的手动档。key 只存在这台设备里，不随导出文件走。</p><div id="report-manual">${reportManualHtml()}</div><label class="settings-report-field"><span>长期事实</span><textarea data-report-field="reportMemory" rows="6" spellcheck="false" placeholder="每期都会附给模型的固定背景；报告里的「长期事实候选」会自动追加到这里">${escapeHtml(prefs.reportMemory)}</textarea></label><div id="report-memory-row" class="report-run">${reportMemoryRowMarkup()}</div><details class="settings-prompts"><summary>提示词<small>默认英文，输出跟随日志语言</small></summary>${prompts}<div class="settings-report-actions"><button data-action="restore-prompts">恢复默认提示词</button></div></details></div></details>`;
+  return `<div class="settings-report-body">${field("reportProvider", "服务商地址", prefs.reportProvider, "url")}${field("reportModel", "模型名", prefs.reportModel)}${field("reportKey", "API key", prefs.reportKey, "password")}<div id="report-manual">${reportManualHtml()}</div><label class="settings-report-field"><span>长期事实</span><textarea data-report-field="reportMemory" rows="6" spellcheck="false" >${escapeHtml(prefs.reportMemory)}</textarea></label><div id="report-memory-row" class="report-run">${reportMemoryRowMarkup()}</div><details class="settings-prompts" data-group="prompts"><summary>提示词</summary>${prompts}<div class="settings-report-actions"><button data-action="restore-prompts">恢复默认提示词</button></div></details></div>`;
 }
 
 /** 复制到剪贴板（WebView 与浏览器都是安全上下文，失败时告知可以手选）。 */
@@ -949,9 +959,8 @@ async function copyText(text: string): Promise<boolean> {
 }
 
 function motionPreferenceNoteMarkup() {
-  const preset = prefs.motionPreset;
   const allEnabled = Object.values(prefs.motion).every(Boolean);
-  return `<div id="motion-preference-note" class="motion-preference-note"><p>${motionSummary(prefs.motion)}</p><span>预设：${preset === "full" ? "完整动画" : preset === "reduced" ? "减少动画" : "自定义"} · 选择会保存在本站</span>${allEnabled ? "" : '<button data-action="enable-motion">启用完整动画并重播 ↻</button>'}</div>`;
+  return `<div id="motion-preference-note" class="motion-preference-note"><p>${motionSummary(prefs.motion)}</p>${allEnabled ? "" : '<button data-action="enable-motion">启用完整动画并重播 ↻</button>'}</div>`;
 }
 /** 生成临时 Blob 交给浏览器下载（Android 落到下载目录，iOS 走分享存进「文件」）。 */
 function downloadText(name: string, text: string) {
@@ -999,12 +1008,61 @@ function editorValues(): { date: string; time: string; title: string; body: stri
     body: (document.querySelector<HTMLTextAreaElement>("#entry-body-field")?.value ?? "").replace(/\s+$/, ""),
   };
 }
+/**
+ * 分组展开状态：设置里切换某项会重渲染弹窗，不能因此把用户展开的项收回去。
+ * details 的 toggle 事件不冒泡，所以用捕获阶段监听。
+ */
+const settingsGroupOpen: Record<string, boolean> = {};
+document.addEventListener(
+  "toggle",
+  (e) => {
+    const group = (e.target as HTMLElement | null)?.closest?.("details[data-group]") as HTMLDetailsElement | null;
+    if (group?.dataset.group) settingsGroupOpen[group.dataset.group] = group.open;
+  },
+  true,
+);
+
+/** 把记录下来的展开状态套回（刚渲染出来的）设置页。 */
+function applyGroupState(root: ParentNode = document): void {
+  root.querySelectorAll<HTMLDetailsElement>("details[data-group]").forEach((group) => {
+    const key = group.dataset.group;
+    if (key && settingsGroupOpen[key] !== undefined) group.open = settingsGroupOpen[key];
+  });
+}
+
+/** 设置分组：小标题 + 可折叠内容。除声音默认展开，其余分组默认收起。 */
+const settingsGroup = (key: string, title: string, hint: string, body: string, open = false) =>
+  `<details class="settings-group" data-group="${key}"${open ? " open" : ""}><summary><span>${title}</span><small>${hint}</small></summary><div class="settings-group-body">${body}</div></details>`;
+
 function settingsMarkup() {
-  return `<h2>SYSTEM SETTINGS<small>终端偏好设置</small></h2><p class="settings-intro">${operatorId} <span>·</span> SESSION AUTHORIZED</p><div class="settings-identity"><div><strong>操作员 ID</strong><span>开场身份确认、页脚与日志署名；留空恢复 JOYCE MOORE</span></div><input id="operator-id" type="text" maxlength="24" autocomplete="off" spellcheck="false" value="${escapeHtml(operatorId)}"/></div>${isWallpaper ? '<p class="wallpaper-settings-note">每次启动都会读取 Wallpaper Engine 中的设置。在此修改仅对当前运行生效，无法持久保存；如需保留，请在 Wallpaper Engine 的壁纸属性中调整。</p>' : ""}<div class="settings-list">${themeSettingsMarkup(prefs.colorTheme === "dark")}${!isWallpaper ? `<label><div><strong>SUPER PERFORMANCE</strong><span>降低三维画质和渲染分辨率，保留完整动效；关闭后恢复原画质</span></div><input type="checkbox" data-pref="superPerformance" ${prefs.superPerformance ? "checked" : ""}/><i class="toggle"></i></label>` : ""}${workbench?.settingsMarkup() ?? ""}${audioSettingsMarkup(prefs)}<label><div><strong>三维档案</strong><span>关闭后卸载三维模型，只保留平面界面；重新开启会重新载入模型</span></div><input type="checkbox" id="three-pref" ${threeState === "on" ? "checked" : ""}/><i class="toggle"></i></label></div>${motionPreferenceNoteMarkup()}${motionSettingsMarkup(prefs.motion, prefs.motionPreset)}${isWallpaper ? "" : reportSettingsMarkup()}${qualityMarkup(prefs.rendering)}<div class="settings-shortcuts">${isWallpaper ? '<span>DESKTOP CONTROLS</span><p>拖动阵列或点击界面按钮浏览档案。桌面模式下，方向键与滚轮可能无法传入壁纸。</p>' : '<span>KEYBOARD CONTROLS</span><p><kbd>←</kbd><kbd>→</kbd> 切列 <kbd>↑</kbd><kbd>↓</kbd> 选档 <kbd>ENTER</kbd> 读取 <kbd>/</kbd> 检索 <kbd>ESC</kbd> 返回</p>'}</div><div class="settings-bottom"><button data-action="restart">REINITIALIZE SYSTEM <span>↻</span></button></div><div class="modal-bottom"><span>ANALYSIS OS / 1.0 · 使用 MiSans 字体（小米） <a href="${assetUrl("fonts/MiSans-license.pdf")}" target="_blank" rel="noopener">字体许可</a></span><span>POWERED BY RHINE LAB</span></div>`;
+  const theme = themeSettingsMarkup(prefs.colorTheme === "dark");
+  const three = `<label><div><strong>三维档案</strong><span>关闭后卸载三维模型，只保留平面界面；重新开启会重新载入模型</span></div><input type="checkbox" id="three-pref" ${threeState === "on" ? "checked" : ""}/><i class="toggle"></i></label>`;
+  const superPerformance = `<label><div><strong>SUPER PERFORMANCE</strong><span>降低三维画质和渲染分辨率，保留完整动效；关闭后恢复原画质</span></div><input type="checkbox" data-pref="superPerformance" ${prefs.superPerformance ? "checked" : ""}/><i class="toggle"></i></label>`;
+  const display = `<div class="settings-list">${theme}${three}${workbench?.settingsMarkup() ?? ""}${!isWallpaper ? superPerformance : ""}</div>${qualityMarkup(prefs.rendering)}`;
+  const motion = `${motionSettingsMarkup(prefs.motion, prefs.motionPreset)}${motionPreferenceNoteMarkup()}`;
+  const sound = `<div class="settings-list">${audioSettingsMarkup(prefs)}</div>`;
+  const shortcuts = isWallpaper
+    ? '<span>DESKTOP CONTROLS</span><p>拖动阵列或点击界面按钮浏览档案。桌面模式下，方向键与滚轮可能无法传入壁纸。</p>'
+    : '<span>KEYBOARD CONTROLS</span><p><kbd>←</kbd><kbd>→</kbd> 切列 <kbd>↑</kbd><kbd>↓</kbd> 选档 <kbd>ENTER</kbd> 读取 <kbd>/</kbd> 检索 <kbd>ESC</kbd> 返回</p>';
+  const control = `<div class="settings-shortcuts">${shortcuts}</div><div class="settings-bottom"><button data-action="restart">REINITIALIZE SYSTEM <span>↻</span></button></div>`;
+  return `<h2>SYSTEM SETTINGS<small>终端偏好设置</small></h2><p class="settings-intro">${operatorId} <span>·</span> SESSION AUTHORIZED</p><div class="settings-identity"><div><strong>Operater ID</strong></div><input id="operator-id" type="text" maxlength="24" autocomplete="off" spellcheck="false" value="${escapeHtml(operatorId)}"/></div>${isWallpaper ? '<p class="wallpaper-settings-note">每次启动都会读取 Wallpaper Engine 中的设置。在此修改仅对当前运行生效，无法持久保存；如需保留，请在 Wallpaper Engine 的壁纸属性中调整。</p>' : ""}${settingsGroup("display", "显示与画面", "配色 · 三维 · 画质", display)}${settingsGroup("motion", "动效与开场", "开场与动效开关", motion)}${settingsGroup("sound", "声音", "音效与音乐", sound, true)}${isWallpaper ? "" : settingsGroup("report", "报告", "周报 · 月报 · 年报", reportSettingsMarkup())}${settingsGroup("control", "控制与维护", "快捷键与重置", control)}<div class="modal-bottom"><span>ANALYSIS OS / 1.0 · 使用 MiSans 字体（小米） <a href="${assetUrl("fonts/MiSans-license.pdf")}" target="_blank" rel="noopener">字体许可</a></span><span>POWERED BY RHINE LAB</span></div>`;
+}
+
+let previewTimer = 0;
+/** 编辑中的实时预览：只重渲染预览窗格，不碰输入框（否则光标会跳）。 */
+function paintMarkdownPreview(): void {
+  const field = document.querySelector<HTMLTextAreaElement>("#entry-body-field");
+  const preview = document.querySelector<HTMLElement>("#entry-body-preview");
+  if (field && preview) preview.innerHTML = renderMarkdown(field.value);
 }
 
 document.addEventListener("input", (e) => {
   const quick = e.target as HTMLInputElement;
+  if (quick.id === "entry-body-field") {
+    clearTimeout(previewTimer);
+    previewTimer = window.setTimeout(paintMarkdownPreview, 120);
+    return;
+  }
   if (quick.id === "entry-search") {
     board.query = quick.value;
     renderEntryBody();
@@ -1067,12 +1125,11 @@ document.addEventListener("change", (e) => {
     prefs.motionPreset = motionPresetFor(prefs.motion);
     savePrefs();
     const motionRoot = $("#motion-settings");
-    const advancedOpen = motionRoot.querySelector<HTMLDetailsElement>(".motion-advanced")?.open ?? false;
     const settingsPanel = motionRoot.closest<HTMLElement>(".settings-modal");
     const scrollTop = settingsPanel?.scrollTop ?? 0;
     motionRoot.outerHTML = motionSettingsMarkup(prefs.motion, prefs.motionPreset);
+    if (settingsPanel) applyGroupState(settingsPanel);
     $("#motion-preference-note").outerHTML = motionPreferenceNoteMarkup();
-    $("#motion-settings").querySelector<HTMLDetailsElement>(".motion-advanced")!.open = advancedOpen;
     requestAnimationFrame(() => {
       if (settingsPanel) settingsPanel.scrollTop = scrollTop;
       document.querySelector<HTMLInputElement>(`[data-motion="${key}"]`)?.focus({ preventScroll: true });
@@ -1259,6 +1316,21 @@ document.addEventListener("click", (e) => {
     savePrefs();
     renderModal();
     notify("已恢复默认提示词");
+    return;
+  }
+  if (action === "editor-view") {
+    const editor = document.querySelector<HTMLElement>(".md-editor");
+    if (!editor) return;
+    const preview = editor.dataset.view !== "preview";
+    editor.dataset.view = preview ? "preview" : "edit";
+    document.querySelectorAll<HTMLElement>(".md-view").forEach((button) => {
+      const label = preview ? "编辑" : "预览";
+      button.setAttribute("aria-label", label);
+      button.title = label;
+      button.setAttribute("aria-pressed", String(preview));
+    });
+    if (!preview) document.querySelector<HTMLTextAreaElement>("#entry-body-field")?.focus();
+    audio.play("ui-tick");
     return;
   }
   if (el.dataset.entryDay !== undefined) { board.selectDay(el.dataset.entryDay); renderEntryBody(); return; }
@@ -1689,7 +1761,7 @@ function completeStartup(silent: boolean) {
 function askOperatorId(done: () => void) {
   loading.insertAdjacentHTML(
     "beforeend",
-    `<form class="identity-gate" id="identity-gate"><strong>OPERATOR ID</strong><p>第一次进入，先确认身份。这个名字会用在开场身份确认、页脚与日志署名，之后可以在设置里改。</p><label><span>身份名称</span><input id="operator-id" type="text" maxlength="24" autocomplete="off" spellcheck="false" value="${escapeHtml(operatorId)}"/></label><button type="submit">确认并进入 <span>↗</span></button></form>`,
+    `<form class="identity-gate" id="identity-gate"><strong>OPERATOR ID</strong><p>Welcome, type your name.</p><label><span>身份名称</span><input id="operator-id" type="text" maxlength="24" autocomplete="off" spellcheck="false" value="${escapeHtml(operatorId)}"/></label><button type="submit">确认并进入 <span>↗</span></button></form>`,
   );
   const form = document.querySelector<HTMLFormElement>("#identity-gate")!;
   const input = form.querySelector<HTMLInputElement>("#operator-id")!;

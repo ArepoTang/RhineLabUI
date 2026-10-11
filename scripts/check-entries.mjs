@@ -102,6 +102,8 @@ test("日志过了本日只读；待办任何日期都可写", () => {
 });
 
 // ---- 界面 markup（纯函数，可在 Node 里断言）--------------------------------
+const { setupDom } = await import("./dom-env.mjs");
+await setupDom();
 const { boardBodyMarkup, editorMarkup, entriesMarkup, reportManualMarkup } = await import("../src/entries-ui.ts");
 
 const board = (over = {}) => ({
@@ -174,12 +176,18 @@ test("没有待办时给出空状态，而不是空白", () => {
   assert.match(boardBodyMarkup(board()), /这一天没有待办/);
 });
 
-test("条目文本被转义，标题与正文里的 HTML 不会执行", () => {
+test("标题与正文里的 HTML 都不会执行（标题转义、正文过消毒）", () => {
   const html = boardBodyMarkup(board({
-    entries: [at("x", "2026-10-06", "", '<img src=x onerror="boom()">', "<script>boom()</script>"), log("l", "2026-10-06", "<script>log()</script>")],
+    entries: [
+      at("x", "2026-10-06", "", '<img src=x onerror="boom()">', "<script>boom()</script>"),
+      log("l", "2026-10-06", "<script>log()</script>"),
+    ],
   }));
-  assert.ok(!html.includes("<img"), "标题未转义");
-  assert.ok(!html.includes("<script>"), "正文未转义");
+  assert.ok(!html.includes("<img"), "标题里的 HTML 被转义");
+  assert.ok(!html.includes("<script"), "正文里的 script 被消毒掉（渲染路径见 check:markdown）");
+  // 注意别写成 /on\w+=/：data-entry-month=" 里也有 "onth=" 这种子串。
+  // 只认真正的属性写法（后跟原始引号）：转义文本里的 onerror=&quot; 是无害的字面量。
+  assert.ok(!/(?:^|\s)on(?:click|error|load|focus|blur|input|change|mouse\w+|touch\w+)\s*=\s*["']/i.test(html), "事件属性不会留下来");
 });
 
 test("搜索态：命中列表跨日期显示，日志带格式标记且只读的仍标注", () => {
@@ -448,7 +456,7 @@ test("手动档在设置里：选周期、复制提示词、粘贴存为报告",
   const existing = { ...at("r", "2026-10-18", "", "", "本周总结\n\n## Done", false, "report"), period: "2026-W42" };
   const filled = reportManualMarkup({ period: "2026-W42", existing, today: "2026-10-14" });
   assert.match(filled, /data-state="done"/, "有报告时实心");
-  assert.match(filled, /粘贴会覆盖它/);
+  assert.match(filled, /这一期已经有报告（2026-10-18）。/, "只说事实，不再解释覆盖行为");
   assert.equal((panel.match(/data-active="true"/g) ?? []).length, 1, "只有当前那一期高亮（本周/上周同属 week，不能两个都亮）");
   assert.match(panel, /data-report-back="0" data-active="true"/, "2026-10-14 就在 W42，高亮的应是「本周」");
   const lastWeek = reportManualMarkup({ period: "2026-W41", existing: undefined, today: "2026-10-14" });
@@ -478,4 +486,15 @@ test("日历格子：有报告的那天多一个三角标记", () => {
   const body = boardBodyMarkup(board({ entries }));
   assert.match(body, /entry-mark-report/);
   assert.match(body, /报告<\/span><span>1 份<\/span>/, "选中日里单列一段报告");
+});
+
+test("日志编辑器：全屏、有预览窗格、抬头带预览开关，工具条不在编辑器里", () => {
+  const html = editorMarkup(log("l", "2026-10-06", "正文"), "2026-10-06");
+  assert.match(html, /class="md-editor" data-view="edit"/);
+  assert.match(html, /<textarea id="entry-body-field"/, "输入框仍是 main.ts 认的那个 id");
+  assert.match(html, /class="md-pane md-pane-preview markdown" id="entry-body-preview"/, "预览窗格预渲染了正文");
+  assert.match(html, /id="entry-body-preview"[^>]*><p>正文<\/p>/, "预览里已经有渲染好的正文");
+  assert.match(html, /class="md-view" data-action="editor-view"/, "抬头上的预览开关");
+  assert.ok(!html.includes("data-md="), "没有格式栏，正文靠直接写 Markdown");
+  assert.ok(!html.includes("md-bar"), "键盘配件栏已按用户要求删掉");
 });

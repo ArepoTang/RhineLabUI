@@ -1,4 +1,5 @@
 import { dayKey } from "./workbench-state.ts";
+import { renderMarkdown } from "./markdown.ts";
 import {
   entriesOn,
   entryKind,
@@ -99,7 +100,7 @@ function logMarkup(entry: Entry | undefined, day: string, today: string): string
     return `<p class="entry-empty">${day < today ? "这一天没有日志。" : "还没到这一天。"}</p>`;
   }
   const locked = logLocked(entry, today);
-  return `<article class="entry-log" data-locked="${locked}"><div class="entry-log-body">${escape(entry.body) || "（空）"}</div>${locked ? '<span class="entry-log-note">只读</span>' : `<button class="entry-edit" data-entry-log="${day}">编辑日志</button>`}</article>`;
+  return `<article class="entry-log" data-locked="${locked}"><div class="entry-log-body markdown">${renderMarkdown(entry.body) || "（空）"}</div>${locked ? '<span class="entry-log-note">只读</span>' : `<button class="entry-edit" data-entry-log="${day}">编辑日志</button>`}</article>`;
 }
 
 export function boardBodyMarkup(board: BoardView): string {
@@ -169,8 +170,8 @@ export function reportManualMarkup(view: ReportManualView): string {
   const buttons = SCOPE_BUTTONS.map(
     (item) => `<button data-report-scope="${item.scope}" data-report-back="${item.back}"${anchoredPeriod(item.scope, item.back, today) === period ? ' data-active="true"' : ""}>${item.label}</button>`,
   ).join("");
-  const preview = existing?.body.trim().split("\n").slice(0, 6).join("\n") ?? "";
-  return `<div class="report-manual"><div class="report-scopes">${buttons}</div><p class="report-head">${glyph(existing ? "done" : "missing")}<strong>${periodTitle(period)}</strong><span>${scopeName(scope)} · ${from} 至 ${to}</span></p><div class="report-run">${run.busy ? '<button data-action="cancel-reports">取消</button>' : '<button data-action="backfill-reports">补全缺口</button>'}<span>${escape(run.status)}</span></div><div class="report-actions"><button data-action="copy-prompt" class="report-primary">复制提示词</button></div><label class="entry-field report-paste"><span>把模型输出粘到这里</span><textarea id="report-paste" rows="8" placeholder="## Summary…"></textarea></label><div class="report-actions"><button data-action="save-pasted-report">存为报告</button></div>${existing ? `<p class="entry-empty">这一期已经有报告（${existing.date}）—— 粘贴会覆盖它，日历里可以逐句改。</p><pre class="report-preview">${escape(preview)}</pre>` : '<p class="entry-empty">这一期还没有报告。</p>'}</div>`;
+  const preview = existing ? renderMarkdown(existing.body) : "";
+  return `<div class="report-manual"><div class="report-scopes">${buttons}</div><p class="report-head">${glyph(existing ? "done" : "missing")}<strong>${periodTitle(period)}</strong><span>${scopeName(scope)} · ${from} 至 ${to}</span></p><div class="report-run">${run.busy ? '<button data-action="cancel-reports">取消</button>' : '<button data-action="backfill-reports">补全缺口</button>'}<span>${escape(run.status)}</span></div><div class="report-actions"><button data-action="copy-prompt" class="report-primary">复制提示词</button></div><label class="entry-field report-paste"><span>把模型输出粘到这里</span><textarea id="report-paste" rows="8" placeholder="## Summary…"></textarea></label><div class="report-actions"><button data-action="save-pasted-report">存为报告</button></div>${existing ? `<p class="entry-empty">这一期已经有报告（${existing.date}）。</p><div class="report-preview markdown">${preview}</div>` : '<p class="entry-empty">这一期还没有报告。</p>'}</div>`;
 }
 
 export function entriesMarkup(board: BoardView): string {
@@ -187,6 +188,19 @@ export function entriesMarkup(board: BoardView): string {
  * 编辑弹窗。待办：日期、时间、标题、正文；日志：只有正文，日期就是当天。
  * 过日只读的日志不会走到这里（列表里只给只读正文）。
  */
+
+/** 图标一律内联 SVG（和品牌标志同一路子），不引图标库；文字只留在 aria-label / title 里。 */
+const ICON = (paths: string) => `<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">${paths}</svg>`;
+
+/**
+ * 全屏 Markdown 编辑器：正文/预览两个窗格。
+ * 插入工具的按钮不在这里 —— 它们在键盘配件栏里（markdownBarMarkup），
+ * 因为手机上它必须贴着键盘，而弹窗在过渡时会带 transform，fixed 元素会被它带走。
+ */
+function markdownEditorMarkup(body: string, rows = 14): string {
+  return `<div class="md-editor" data-view="edit"><div class="md-panes"><div class="md-pane md-pane-edit"><textarea id="entry-body-field" aria-label="正文（Markdown）" rows="${rows}" spellcheck="false">${escape(body)}</textarea></div><div class="md-pane md-pane-preview markdown" id="entry-body-preview" aria-label="预览">${renderMarkdown(body)}</div></div></div>`;
+}
+
 export function editorMarkup(
   entry: Entry | undefined,
   date: string,
@@ -196,12 +210,12 @@ export function editorMarkup(
   if (format === "report") {
     const period = entry?.period ?? "";
     const { from, to } = periodRange(period || "1970-01-01");
-    return `<h2>${entry ? "EDIT REPORT" : "NEW REPORT"}<small>${entry ? "编辑报告" : "报告"}</small></h2><p class="settings-intro">${period ? `${periodTitle(period)} · ${from} 至 ${to}` : "未选定周期"}</p><div class="entry-fields"><label class="entry-field entry-body-field"><span>正文（Markdown）</span><textarea id="entry-body-field" rows="16">${escape(entry?.body ?? "")}</textarea></label></div><div class="entry-actions">${entry ? '<button data-action="delete-entry" class="entry-delete">删除</button>' : ""}<button data-action="save-entry" class="entry-save">保存 <span>↗</span></button></div>`;
+    return `<h2>${entry ? "EDIT REPORT" : "NEW REPORT"}<small>${entry ? "编辑报告" : "报告"}</small></h2><p class="settings-intro">${period ? `${periodTitle(period)} · ${from} 至 ${to}` : "未选定周期"}<button type="button" class="md-view" data-action="editor-view" aria-label="预览" title="预览">${ICON('<path d="M1.8 8S4 3.5 8 3.5 14.2 8 14.2 8 12 12.5 8 12.5 1.8 8 1.8 8Z"/><circle cx="8" cy="8" r="2"/>')}</button></p>${markdownEditorMarkup(entry?.body ?? "", 18)}<div class="entry-actions">${entry ? '<button data-action="delete-entry" class="entry-delete">删除</button>' : ""}<button data-action="save-entry" class="entry-save">保存 <span>↗</span></button></div>`;
   }
   if (format === "log")
-    return `<h2>${entry ? "EDIT LOG" : "NEW LOG"}<small>${entry ? "编辑日志" : "写日志"}</small></h2><p class="settings-intro">${date}</p><div class="entry-fields"><label class="entry-field entry-body-field"><span>正文（Markdown）</span><textarea id="entry-body-field" rows="14">${escape(entry?.body ?? "")}</textarea></label></div><div class="entry-actions"><button data-action="save-entry" class="entry-save">保存 <span>↗</span></button></div>`;
+    return `<h2>${entry ? "EDIT LOG" : "NEW LOG"}<small>${entry ? "编辑日志" : "写日志"}</small></h2><p class="settings-intro">${date}<button type="button" class="md-view" data-action="editor-view" aria-label="预览" title="预览">${ICON('<path d="M1.8 8S4 3.5 8 3.5 14.2 8 14.2 8 12 12.5 8 12.5 1.8 8 1.8 8Z"/><circle cx="8" cy="8" r="2"/>')}</button></p>${markdownEditorMarkup(entry?.body ?? "", 16)}<div class="entry-actions"><button data-action="save-entry" class="entry-save">保存 <span>↗</span></button></div>`;
   const value = entry?.date ?? date;
-  return `<h2>${entry ? "EDIT ENTRY" : "NEW ENTRY"}<small>${entry ? "编辑待办" : "新建待办"}</small></h2><p class="settings-intro">待办可以是一句话，也可以是带时间的安排；时间留空就是全天</p><div class="entry-fields"><label class="entry-field"><span>日期</span><input type="date" id="entry-date" value="${value}"/></label><label class="entry-field"><span>时间（可选）</span><input type="time" id="entry-time" value="${entry?.time ?? ""}"/></label><label class="entry-field"><span>标题（可选）</span><input type="text" id="entry-title" maxlength="80" value="${escape(entry?.title ?? "")}"/></label><label class="entry-field entry-body-field"><span>正文（Markdown）</span><textarea id="entry-body-field" rows="10">${escape(entry?.body ?? "")}</textarea></label></div><div class="entry-actions">${entry ? '<button data-action="delete-entry" class="entry-delete">删除</button>' : ""}<button data-action="save-entry" class="entry-save">保存 <span>↗</span></button></div>`;
+  return `<h2>${entry ? "EDIT ENTRY" : "NEW ENTRY"}<small>${entry ? "编辑待办" : "新建待办"}</small></h2><div class="entry-fields"><label class="entry-field"><span>日期</span><input type="date" id="entry-date" value="${value}"/></label><label class="entry-field"><span>时间（可选）</span><input type="time" id="entry-time" value="${entry?.time ?? ""}"/></label><label class="entry-field"><span>标题（可选）</span><input type="text" id="entry-title" maxlength="80" value="${escape(entry?.title ?? "")}"/></label><label class="entry-field entry-body-field"><span>正文（Markdown）</span><textarea id="entry-body-field" rows="10">${escape(entry?.body ?? "")}</textarea></label></div><div class="entry-actions">${entry ? '<button data-action="delete-entry" class="entry-delete">删除</button>' : ""}<button data-action="save-entry" class="entry-save">保存 <span>↗</span></button></div>`;
 }
 
 export class EntriesBoard implements BoardView {

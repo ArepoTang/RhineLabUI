@@ -80,14 +80,10 @@
 .report-preview { max-height: 160px; margin: 10px 0 0; padding: 12px; overflow: auto; font: inherit; font-size: 12px; line-height: 1.9; white-space: pre-wrap; color: var(--theme-muted, #5f5d55); background: var(--theme-field, #ece9e4); border: 1px solid var(--theme-line, #bdb8ad); }
 
 /* 设置里的报告栏（折叠，不挤占原有设置长度） */
-.settings-reports { margin: 22px 0 0; border-top: 1px solid var(--theme-line, #bdb8ad); }
-.settings-reports > summary { display: flex; gap: 10px; align-items: baseline; padding: 14px 0; font-size: 13px; cursor: pointer; }
-.settings-reports > summary small, .settings-prompts > summary small { color: var(--theme-muted, #77756d); }
+.settings-prompts > summary small { color: var(--theme-muted, #77756d); }
 .settings-report-body { display: grid; gap: 14px; padding: 4px 0 18px; }
 .settings-report-field { display: grid; gap: 6px; font-size: 12px; color: var(--theme-muted, #77756d); }
 .settings-report-field input, .settings-report-field textarea { width: 100%; padding: 10px 12px; font: inherit; font-size: 13px; color: var(--theme-ink, #080a08); background: var(--theme-field, #ece9e4); border: 1px solid var(--theme-line, #bdb8ad); }
-.settings-report-field small { font-size: 11px; line-height: 1.7; }
-.settings-report-note { font-size: 11px; line-height: 1.8; color: var(--theme-muted, #77756d); }
 .settings-prompts > summary { padding: 12px 0; font-size: 12px; cursor: pointer; }
 .settings-prompts { display: grid; gap: 14px; }
 .settings-report-actions { display: flex; justify-content: flex-end; }
@@ -138,6 +134,3 @@
 .report-run { display: flex; align-items: center; gap: 10px; }
 .report-run button { min-height: 34px; padding: 0 14px; border: 1px solid var(--theme-line, #a6a49c); font-size: 12px; }
 .report-run span { min-width: 0; font-size: 11px; line-height: 1.7; color: var(--theme-muted, #77756d); overflow-wrap: anywhere; }
-
-/* 压缩记忆那一行：按钮 + 说明 */
-.report-run-note { font-size: 11px; line-height: 1.8; color: var(--theme-muted, #77756d); }

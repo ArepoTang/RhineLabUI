@@ -23,76 +23,62 @@ export type StoredMotion = Partial<MotionPreferences> & {
 
 export const MOTION_LABELS: Record<
   MotionKey,
-  { title: string; description: string; group: string }
+  { title: string; group: string }
 > = {
   boot: {
     title: "BOOT SEQUENCE",
-    description: "开机标志、扫描与欢迎画面",
     group: "开场",
   },
   selectionWave: {
     title: "SELECTION WAVE",
-    description: "选档时向阵列传播的波浪",
     group: "档案阵列",
   },
   idleWave: {
     title: "IDLE MOTION",
-    description: "停止操作后的阵列起伏",
     group: "档案阵列",
   },
   pointerParallax: {
     title: "POINTER PARALLAX",
-    description: "镜头随指针的轻微偏移",
     group: "档案阵列",
   },
   dragMomentum: {
     title: "DRAG MOMENTUM",
-    description: "松手后按实际速度继续滑行",
     group: "档案阵列",
   },
   selectionTransition: {
     title: "SELECTION TRANSITION",
-    description: "切列、切档时的轨道移动",
     group: "档案阵列",
   },
   detailTransition: {
     title: "DETAIL TRANSITION",
-    description: "抽取、转正、归位与详情镜头",
     group: "档案详情",
   },
   modelDecryption: {
     title: "MODEL DECRYPTION",
-    description: "模型解密线与磨砂揭示",
     group: "档案详情",
   },
   documentReveal: {
     title: "DOCUMENT REVEAL",
-    description: "正文的遮罩揭示",
     group: "档案详情",
   },
   rollingText: {
     title: "ROLLING TEXT",
-    description: "标题、分类与权限标签滚动",
     group: "界面",
   },
   rollingNumbers: {
     title: "ROLLING NUMBERS",
-    description: "序号、列编号与档案编码滚动",
     group: "界面",
   },
   surfaceTransitions: {
     title: "SURFACE TRANSITIONS",
-    description: "详情、检索、收藏与设置窗口过渡",
     group: "界面",
   },
   viewerNavigation: {
     title: "VIEWER NAVIGATION",
-    description: "360° 旋转、平移、缩放与复位阻尼",
     group: "360° 查看器",
   },
   viewerModelTransition: {
     title: "VIEWER MODEL TRANSITION",
-    description: "拆解、重组与清晰度变化",
     group: "360° 查看器",
   },
 };
@@ -192,7 +178,7 @@ export function motionSettingsMarkup(
   const presetButton = (value: "full" | "reduced", label: string) =>
     `<button type="button" data-action="motion-preset" data-preset="${value}" aria-pressed="${selected === value}">${label}</button>`;
   // 开屏动画只有两档：开启 / 关闭。它不从属于分项自定义，单独放在最上面。
-  const boot = `<label class="motion-setting"><div><strong>BOOT SEQUENCE</strong><span>开屏动画：开启从白场播到欢迎页，关闭则直接进入档案；下次重播生效</span></div><input type="checkbox" data-motion="boot" ${motion.boot ? "checked" : ""}/><i class="toggle"></i></label>`;
+  const boot = `<label class="motion-setting"><div><strong>BOOT SEQUENCE</strong></div><input type="checkbox" data-motion="boot" ${motion.boot ? "checked" : ""}/><i class="toggle"></i></label>`;
   const groups = [
     ...new Set(Object.values(MOTION_LABELS).map((entry) => entry.group)),
   ];
@@ -205,10 +191,10 @@ export function motionSettingsMarkup(
       return `<fieldset><legend>${group}</legend>${keys
         .map((key) => {
           const item = MOTION_LABELS[key];
-          return `<label class="motion-setting"><div><strong>${item.title}</strong><span>${item.description}</span></div><input type="checkbox" data-motion="${key}" ${motion[key] ? "checked" : ""}/><i class="toggle"></i></label>`;
+          return `<label class="motion-setting"><div><strong>${item.title}</strong></div><input type="checkbox" data-motion="${key}" ${motion[key] ? "checked" : ""}/><i class="toggle"></i></label>`;
         })
         .join("")}</fieldset>`;
     })
     .join("");
-  return `<section id="motion-settings" class="motion-settings" aria-label="动效设置"><div class="motion-settings-head"><div><strong>ANIMATION CONTROLS</strong><span>完整或减少；关闭后会立即收束当前动画</span></div>${presetButton("full", "完整")}${presetButton("reduced", "减少")}</div>${boot}<details class="motion-advanced"><summary>精细设置 <span>阵列 / 详情 / 界面 / 360° 查看器</span></summary><div class="motion-groups">${advanced}</div></details></section>`;
+  return `<section id="motion-settings" class="motion-settings" aria-label="动效设置"><div class="motion-settings-head"><div><strong>ANIMATION CONTROLS</strong></div>${presetButton("full", "完整")}${presetButton("reduced", "减少")}</div>${boot}<details class="motion-advanced" data-group="motion-advanced"><summary>精细设置</summary><div class="motion-groups">${advanced}</div></details></section>`;
 }

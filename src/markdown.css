@@ -1,0 +1,63 @@
+/* 渲染出来的 Markdown（日志正文、报告、粘贴预览）与全屏编辑器。
+   沿用终端纸色与 1px 细线：没有圆角、没有阴影、颜色一律走主题变量。 */
+
+.markdown { font-size: 14px; line-height: 1.95; color: var(--theme-ink, #080a08); overflow-wrap: anywhere; }
+.markdown > :first-child { margin-top: 0; }
+.markdown > :last-child { margin-bottom: 0; }
+.markdown h1, .markdown h2, .markdown h3, .markdown h4 { margin: 22px 0 8px; font-weight: 400; letter-spacing: .6px; }
+.markdown h1 { font-size: 18px; }
+.markdown h2 { font-size: 16px; }
+.markdown h3 { font-size: 14px; }
+.markdown h4, .markdown h5, .markdown h6 { font-size: 13px; color: var(--theme-muted, #77756d); }
+.markdown p { margin: 10px 0; }
+.markdown strong { font-weight: 600; }
+.markdown em { font-style: italic; }
+.markdown del { color: var(--theme-muted, #77756d); }
+.markdown ul, .markdown ol { margin: 10px 0; padding-left: 22px; }
+.markdown li { margin: 4px 0; }
+.markdown li input[type="checkbox"] { margin: 0 6px 0 0; accent-color: var(--theme-ink, #080a08); }
+.markdown blockquote { margin: 12px 0; padding: 4px 0 4px 14px; border-left: 1px solid var(--theme-line, #a6a49c); color: var(--theme-muted, #5f5d55); }
+.markdown code { padding: 1px 5px; font-family: ui-monospace, "MiSans", monospace; font-size: 12px; background: var(--theme-field, #ece9e4); border: 1px solid var(--theme-line, #d0c6b5); }
+.markdown pre { margin: 12px 0; padding: 14px; overflow-x: auto; background: var(--theme-field, #ece9e4); border: 1px solid var(--theme-line, #bdb8ad); }
+.markdown pre code { padding: 0; border: 0; background: none; }
+.markdown hr { margin: 20px 0; border: 0; border-top: 1px solid var(--theme-line, #bdb8ad); }
+.markdown a { color: var(--theme-ink, #080a08); border-bottom: 1px solid var(--theme-line, #a6a49c); text-decoration: none; }
+.markdown table { width: 100%; margin: 14px 0; border-collapse: collapse; font-size: 13px; }
+.markdown th, .markdown td { padding: 8px 10px; border: 1px solid var(--theme-line, #bdb8ad); text-align: left; }
+
+/* ---- 全屏编辑器 ---- */
+/* 尺寸、背景、无边框全交给 .entries-modal（日历已经验证过的那套全屏规则），
+   这里只负责把编辑器撑满、让输入框吃掉剩余高度。 */
+/* 尺寸/背景仍与日历同源，但在这里也写一遍：编辑器铺满整屏是硬要求，不靠别人的规则成全。 */
+#stage .terminal-modal.editor-full { width: 100%; max-width: none; height: 100%; max-height: none; display: flex; flex-direction: column; }
+/* 手机布局会给遮罩留出上方一条、并限高（日历是有意留的）；编辑器要真铺满，显式重置。 */
+#stage .editor-backdrop { top: 0; height: 100%; padding: 0; align-items: stretch; justify-content: stretch; }
+.editor-full .settings-intro { margin-bottom: 12px; }
+.editor-full .entry-actions { flex: none; padding: 14px 0 0; }
+
+.md-editor { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+/* 窗格容器必须把整块高度吃满：grid 的隐式行是 auto，不加 grid-template-rows: 1fr
+   的话输入框只会按 rows 属性那么高 —— 那就是"编辑框"而不是全屏编辑。 */
+.md-panes { flex: 1; display: grid; grid-template-rows: 1fr; min-height: 0; padding-top: 12px; }
+.md-pane { display: flex; min-height: 0; overflow: hidden; }
+.md-pane-edit textarea { flex: 1; width: 100%; height: 100%; padding: 0; font: inherit; font-size: 14px; line-height: 1.95; color: var(--theme-ink, #080a08); background: none; border: 0; outline: none; resize: none; }
+.md-pane-preview { display: block; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+/* 编辑器抬头里的「预览 / 编辑」开关：图标按钮，跟在日期后面 */
+.editor-full .settings-intro { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+.editor-full .md-view { display: grid; place-items: center; width: 34px; height: 34px; padding: 0; border: 1px solid var(--theme-line, #bdb8ad); color: var(--theme-ink, #080a08); background: none; }
+.editor-full .md-view[aria-pressed="true"] { color: var(--theme-paper, #e8e5e1); background: var(--theme-ink, #080a08); border-color: var(--theme-ink, #080a08); }
+/* 图标是内联 SVG：必须给尺寸、去掉默认黑色填充、让描边跟 currentColor 走，
+   否则浅色下是黑块、暗色下黑底黑图标直接看不见。 */
+.md-view svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.2; stroke-linecap: square; }
+
+/* 窄屏（手机）：一次只看一个窗格，「预览」按钮切换 */
+.md-editor[data-view="edit"] .md-pane-preview { display: none; }
+.md-editor[data-view="preview"] .md-pane-edit { display: none; }
+
+/* 宽屏：两栏并排，切换按钮就没有意义了 */
+@media (min-width: 900px) {
+  .md-editor[data-view] > .md-panes > .md-pane { display: block; }
+  .md-editor[data-view] > .md-panes > .md-pane-edit { display: flex; }
+  .md-editor .md-panes { grid-template-columns: 1fr 1fr; gap: 24px; }
+  .md-editor .md-pane-preview { padding-left: 24px; border-left: 1px solid var(--theme-line, #bdb8ad); }
+}
