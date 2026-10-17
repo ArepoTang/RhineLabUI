@@ -331,6 +331,70 @@ function buildDecorations(view: EditorView): DecorationSet {
   );
 }
 
+const BLOCK_START =
+  /^(#{1,6}\s|[-*+]\s|\d+[.)]\s|```|~~~|(?:-[ \t]*){3,}|(?:\*[ \t]*){3,}|(?:_[ \t]*){3,})/;
+
+/** 当前行是否在围栏代码块里（按 ``` / ~~~ 成对翻转）。 */
+function insideFence(state: EditorState, lineNumber: number): boolean {
+  let fence = false;
+  for (let n = 1; n < lineNumber; n++)
+    if (/^\s{0,3}(```|~~~)/.test(state.doc.line(n).text)) fence = !fence;
+  return fence;
+}
+
+/** 往上找最近的引用前缀；中间有空白行或新块就说明当前行不是引用的续行。 */
+function quotePrefixAbove(state: EditorState, lineNumber: number): string | null {
+  for (let n = lineNumber - 1; n >= 1; n--) {
+    const text = state.doc.line(n).text;
+    const prefix = /^(\s{0,3}(?:>\s?)+)/.exec(text);
+    if (prefix) return prefix[1];
+    if (!text.trim() || BLOCK_START.test(text)) return null;
+  }
+  return null;
+}
+
+export type QuoteEnterPlan = { from: number; to: number; insert: string; anchor: number };
+
+/**
+ * 回车在引用里的行为：
+ * - 普通引用行：换行并自动补上 >，光标落到缩进里（连续写多行不用自己敲 >）。
+ * - 只有 > 的空引用行：按一次回车就退出引用 —— 删掉标记、这一行变成分隔空行，
+ *   光标落到下面新的一段，不会再多留一行空引用。
+ * 返回 null 时交回 CodeMirror 的默认回车。
+ */
+export function quoteEnterPlan(state: EditorState): QuoteEnterPlan | null {
+  const sel = state.selection.main;
+  if (!sel.empty) return null;
+  const line = state.doc.lineAt(sel.head);
+  if (insideFence(state, line.number)) return null;
+  const own = /^(\s{0,3}(?:>\s?)+)/.exec(line.text);
+  const above = own ? null : quotePrefixAbove(state, line.number);
+  if (!own && (!above || BLOCK_START.test(line.text))) return null;
+  const prefix = own ? own[1] : above!;
+  const quotePrefix = /[ \t]$/.test(prefix) ? prefix : prefix + " ";
+  if (/^\s{0,3}(?:>\s?)+\s*$/.test(line.text))
+    return { from: line.from, to: line.to, insert: "\n", anchor: line.from + 1 };
+  return {
+    from: sel.head,
+    to: sel.head,
+    insert: "\n" + quotePrefix,
+    anchor: sel.head + 1 + quotePrefix.length,
+  };
+}
+
+const quoteEnter = (view: EditorView): boolean => {
+  if (view.composing) return false;
+  const plan = quoteEnterPlan(view.state);
+  if (!plan) return false;
+  view.dispatch({
+    changes: { from: plan.from, to: plan.to, insert: plan.insert },
+    selection: { anchor: plan.anchor },
+    scrollIntoView: true,
+    userEvent: "input",
+  });
+  return true;
+};
+
 const livePlugin = ViewPlugin.fromClass(
   class {
     decorations: DecorationSet;
@@ -364,7 +428,7 @@ export function createMarkdownEditor(
           if (update.docChanged) onChange(update.state.doc.toString());
         }),
         // 手机没有 Tab 键；其余交给默认键位（回车、退格、撤销都在里面）。
-        keymap.of([...historyKeymap, ...defaultKeymap]),
+        keymap.of([{ key: "Enter", run: quoteEnter }, ...historyKeymap, ...defaultKeymap]),
       ],
     }),
     parent: host,

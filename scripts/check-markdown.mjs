@@ -101,6 +101,18 @@ for (const spans of [heading, strong, code, mdLink, block]) {
   for (let i = 1; i < spans.length; i++)
     assert.ok(spans[i].from >= spans[i - 1].from, "decoration 必须按位置排序");
 }
+// ---- 引用里的回车：自动续行 / 空行退出 / 围栏内不动 --------------------------
+const { EditorState } = await import("@codemirror/state");
+const { quoteEnterPlan } = await import("../src/markdown-editor.ts");
+const enterPlan = (doc, pos) => quoteEnterPlan(EditorState.create({ doc, selection: { anchor: pos } }));
+assert.deepEqual(enterPlan("> 引用", 4), { from: 4, to: 4, insert: "\n> ", anchor: 7 }, "回车自动补 >，光标落在缩进里");
+assert.deepEqual(enterPlan("> > 嵌套", 6), { from: 6, to: 6, insert: "\n> > ", anchor: 11 }, "多级引用按原层级续行");
+assert.deepEqual(enterPlan("> a\nb", 5), { from: 5, to: 5, insert: "\n> ", anchor: 8 }, "没写 > 的续行回车也补上");
+assert.deepEqual(enterPlan("> a\n> ", 6), { from: 4, to: 6, insert: "\n", anchor: 5 }, "空引用行按一次回车退出，不再多留空行");
+assert.equal(enterPlan("普通段落", 4), null, "普通段落回车交给默认行为");
+assert.equal(enterPlan("> a\n\nb", 6), null, "空行之后不再是引用");
+assert.equal(enterPlan("- 列表", 4), null, "列表回车不补引用");
+assert.equal(enterPlan("```\n> a", 7), null, "代码块里回车不碰引用");
 console.log("Live editor: 边写边渲染断言通过。");
 
 // ---- 编辑器的布局链（全屏编辑靠这几条，缺一条编辑器就不铺满 / 不跟主题字体） ----
@@ -114,11 +126,11 @@ for (const [rule, why] of [
   [/\.md-editor \.md-edit \.cm-scroller \{[^}]*font-family: inherit/, "编辑器跟主题字体，不用 CodeMirror 的 monospace"],
   [/\.md-editor \.md-edit \.cm-line\.md-h1 \{[^}]*padding-top/, "标题上边距压过 .cm-line 的 padding: 0"],
   [/\.md-editor \.md-edit \.cm-line\.md-li \{[^}]*padding-left/, "列表缩进压过 .cm-line 的 padding: 0"],
-  [/\.md-editor \.md-edit \.cm-line\.md-quote \{[^}]*padding-left: 52px/, "引用缩进压过 .cm-line 的 padding: 0（引号和字不能贴在一起）"],
+  [/\.md-editor \.md-edit \.cm-line\.md-quote \{[^}]*padding-left: 8%/, "引用缩进用百分比，压过 .cm-line 的 padding: 0"],
   [/\.md-editor \.md-strong \{/, "粗体在编辑区里直接渲染"],
 ]) {
   assert.match(css, rule, why);
 }
 // 遮罩曾写死 top:0/height:100%，软键盘弹起时把下方的保存按钮盖住。
 assert.ok(!/#stage \.editor-backdrop \{[^}]*height: 100%/.test(css), "编辑器遮罩不能写死高度，高度要跟可视区域走");
-console.log("Editor layout: 布局链 8 条 + 源码开关断言通过。");
+console.log("Editor layout: 布局链 10 条 + 源码开关断言通过。");
