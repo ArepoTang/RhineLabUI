@@ -5,7 +5,9 @@
 /* 整屏：日历是一个页面而不是卡片。外壳仍走弹窗状态机 —— 返回手势、Esc、
    焦点回收、相邻元素 inert 都由它负责，这里只把外观撑满。 */
 #stage .entries-backdrop { background: var(--theme-paper, #e8e5e1); backdrop-filter: none; align-items: stretch; justify-content: stretch; padding: 0; }
-#stage .terminal-modal.entries-modal { width: 100%; max-width: none; height: 100%; max-height: none; border: 0; box-shadow: none; background: var(--theme-paper, #e8e5e1); padding: 0 var(--edge, 40px) 0; }
+/* 底部留白：视口高度的固定比例（5vh），换机型等比，不写死像素；页面自己滚动，
+   留白才不会被溢出内容顶出可视区。日历与日志编辑页共用这条全屏规则。 */
+#stage .terminal-modal.entries-modal { width: 100%; max-width: none; height: 100%; max-height: none; border: 0; box-shadow: none; background: var(--theme-paper, #e8e5e1); padding: 0 var(--edge, 40px) calc(5vh + env(safe-area-inset-bottom)); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
 #stage .terminal-modal.entries-modal > .modal-top { background: var(--theme-paper, #e8e5e1); }
 
 /* 日历与待办日志界面。沿用终端纸色与 1px 描边，不加圆角与阴影。
