@@ -62,6 +62,7 @@ export function liveMarkdownSpans(
 
   let offset = 0;
   let fence = false;
+  let quote = false;
   for (const lineText of text.split("\n")) {
     const lineFrom = offset;
     const lineTo = offset + lineText.length;
@@ -77,6 +78,30 @@ export function liveMarkdownSpans(
     if (fence) {
       addLine(lineFrom, "md-code");
       continue;
+    }
+    // 空行结束引用；紧接着的普通行按 CommonMark 的 lazy continuation 仍算引用。
+    if (lineText.trim() === "") {
+      quote = false;
+      continue;
+    }
+
+    const quoteMark = /^((?:\s{0,3}>\s?)+)/.exec(lineText);
+    if (quoteMark) {
+      quote = true;
+      const depth = (quoteMark[0].match(/>/g) ?? []).length;
+      addLine(lineFrom, depth > 1 ? `md-quote md-quote-${Math.min(depth, 3)}` : "md-quote");
+      if (!touched(lineFrom, lineTo)) addHide(lineFrom, at(quoteMark[0].length));
+      inlineDecorations(lineText, lineFrom, addMark, addHide, touched);
+      continue;
+    }
+    if (quote) {
+      // 引用里的续行没写 >：只要不是新块的开始，就仍按引用显示。
+      if (!/^(#{1,6}\s|[-*+]\s|\d+[.)]\s|```|~~~|(?:-[ \t]*){3,}|(?:\*[ \t]*){3,})/.test(lineText)) {
+        addLine(lineFrom, "md-quote");
+        inlineDecorations(lineText, lineFrom, addMark, addHide, touched);
+        continue;
+      }
+      quote = false;
     }
 
     if (/^\s{0,3}(?:(?:-[ \t]*){3,}|(?:\*[ \t]*){3,}|(?:_[ \t]*){3,})$/.test(lineText)) {
@@ -123,14 +148,6 @@ export function liveMarkdownSpans(
     if (heading) {
       addLine(lineFrom, `md-h${heading[1].length}`);
       if (!touched(lineFrom, lineTo)) addHide(lineFrom, at(heading[0].length));
-      inlineDecorations(lineText, lineFrom, addMark, addHide, touched);
-      continue;
-    }
-
-    const quote = /^(\s{0,3}>\s?)/.exec(lineText);
-    if (quote) {
-      addLine(lineFrom, "md-quote");
-      if (!touched(lineFrom, lineTo)) addHide(lineFrom, at(quote[0].length));
       inlineDecorations(lineText, lineFrom, addMark, addHide, touched);
       continue;
     }

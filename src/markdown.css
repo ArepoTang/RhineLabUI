@@ -66,6 +66,8 @@
 .md-editor .md-h6 { font-size: 14px; font-weight: 600; color: var(--theme-muted, #77756d); }
 .md-editor .md-li { padding-left: 1.35em; text-indent: -1.35em; }
 .md-editor .md-quote { border-left: 2px solid var(--theme-line, #a6a49c); padding-left: 12px; color: var(--theme-muted, #5f5d55); }
+.md-editor .md-quote-2 { padding-left: 26px; }
+.md-editor .md-quote-3 { padding-left: 40px; }
 .md-editor .md-code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; line-height: 1.75; background: var(--theme-field, #ece9e4); border-left: 2px solid var(--theme-line, #bdb8ad); padding-left: 10px; }
 .md-editor .md-fence { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; color: var(--theme-muted, #77756d); min-height: 12px; }
 .md-editor .md-strong { font-weight: 600; }
