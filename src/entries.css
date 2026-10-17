@@ -110,10 +110,6 @@
 .entry-field input,
 .entry-field textarea { width: 100%; padding: 10px 12px; font: inherit; font-size: 14px; color: var(--theme-ink, #080a08); background: var(--theme-field, #ece9e4); border: 1px solid var(--theme-line, #bdb8ad); }
 .entry-field textarea { min-height: 160px; resize: vertical; line-height: 1.7; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
-/* 待办正文的实时预览：更新逻辑与全屏编辑器共用（#entry-body-preview）。
-   空正文时整块隐藏，不占地方。 */
-.entry-preview { max-height: 40vh; overflow-y: auto; padding: 10px 12px; border: 1px solid var(--theme-line, #bdb8ad); }
-.entry-preview:empty { display: none; }
 .entry-actions { display: flex; gap: 10px; margin-top: 18px; }
 .entry-actions button { min-height: 42px; padding: 0 18px; border: 1px solid var(--theme-line, #a6a49c); font-size: 13px; }
 .entry-save { margin-left: auto; color: var(--theme-paper, #ece9e4); background: var(--theme-ink, #080a08); border-color: var(--theme-ink, #080a08); }

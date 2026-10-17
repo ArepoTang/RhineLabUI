@@ -25,6 +25,9 @@
     "check:markdown": "node --experimental-strip-types scripts/check-markdown.mjs"
   },
   "dependencies": {
+    "@codemirror/commands": "^6.11.1",
+    "@codemirror/state": "^6.7.6",
+    "@codemirror/view": "^6.43.14",
     "@kitlangton/rolling-number": "0.4.1",
     "dompurify": "^3.4.16",
     "marked": "^18.1.0",

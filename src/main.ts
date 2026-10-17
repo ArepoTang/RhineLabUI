@@ -13,6 +13,7 @@ import "./quality-settings.css";
 import "./entries.css";
 import "./markdown.css";
 import { EntriesBoard, boardBodyMarkup, editorMarkup, entriesMarkup, reportManualMarkup } from "./entries-ui";
+import type { MarkdownEditor } from "./markdown-editor";
 import { loadOperatorId, operatorId, setOperatorId } from "./operator";
 import { saveViaHost } from "./host-export";
 import { appendFacts, anchoredPeriod, backlogPeriods, buildPrompt, bulletLines, compressPrompt, defaultPrompts, lastWeekPeriod, longTermFacts, nextMissingPeriod, periodMaterial, periodRange, periodTitle, type ReportPrompts, type ReportScope } from "./reports";
@@ -53,7 +54,6 @@ import {
 } from "./motion-preferences";
 import { StartupGate } from "./startup";
 import { dayKey } from "./workbench-state";
-import { renderMarkdown } from "./markdown";
 import { archiveMarkdown, entryKind, exportedEntries, isDayKey, isLog, logLocked, logOn, newEntry, removeEntry, reportOn, saveEntry, type Entry, type EntryKind } from "./entries";
 import { canAdd } from "./boxes";
 import { isWallpaper, wallpaperHost, wallpaperFrame, type WallpaperProperties } from "./wallpaper";
@@ -676,6 +676,7 @@ function closeModal(afterClose?: () => void) {
   modalTransition!.hide(!motionActive("surfaceTransitions"), () => {
     modal = null;
     modalClosing = false;
+    destroyEntryEditor();
     $("#modal-root").replaceChildren();
     modalTransition = undefined;
     modalSiblings.forEach(({ node, inert }) => (node.inert = inert));
@@ -695,6 +696,7 @@ function entryIsFullScreen(): boolean {
 
 function renderModal() {
   if (!modal) return;
+  destroyEntryEditor();
   board.reportConfigured = reportReady();
   board.reportBusy = reportBusy;
   modalTransition?.dispose();
@@ -706,6 +708,10 @@ function renderModal() {
   modalTransition = new SurfaceTransition(backdrop, $(".terminal-modal"));
   modalTransition.show(!motionActive("surfaceTransitions"));
   if (modal === "settings") updateQualitySummary();
+  if (modal === "entry") {
+    const entry = editingEntryId ? board.entry(editingEntryId) : undefined;
+    mountEntryEditor(entry?.body ?? "");
+  }
   if (modal === "search" || modal === "saved") {
     renderResults();
     requestAnimationFrame(() => {
@@ -998,6 +1004,34 @@ function renderEntryBody() {
   const body = document.querySelector("#entry-body");
   if (body) body.innerHTML = boardBodyMarkup(board);
 }
+// 正文由 CodeMirror 实例持有（懒加载）；editorBody 是它的同步镜像，模块还没载入时保存也不会丢内容。
+let entryEditor: MarkdownEditor | null = null;
+let entryBody = "";
+let editorMount = 0;
+
+function entryBodyValue(): string {
+  return entryEditor?.value() ?? entryBody;
+}
+
+function mountEntryEditor(body: string) {
+  entryBody = body;
+  const host = document.querySelector<HTMLElement>("#entry-body-editor");
+  if (!host) return;
+  const token = ++editorMount;
+  void import("./markdown-editor")
+    .then(({ createMarkdownEditor }) => {
+      if (token !== editorMount || !host.isConnected) return;
+      entryEditor = createMarkdownEditor(host, entryBody, (value) => { entryBody = value; });
+    })
+    .catch((error) => console.error("Markdown editor failed to load", error));
+}
+
+function destroyEntryEditor() {
+  editorMount++;
+  entryEditor?.destroy();
+  entryEditor = null;
+}
+
 function editorValues(): { date: string; time: string; title: string; body: string } | null {
   const date = document.querySelector<HTMLInputElement>("#entry-date")?.value ?? "";
   if (!isDayKey(date)) { notify("日期无效，没有保存"); return null; }
@@ -1005,7 +1039,7 @@ function editorValues(): { date: string; time: string; title: string; body: stri
     date,
     time: document.querySelector<HTMLInputElement>("#entry-time")?.value ?? "",
     title: document.querySelector<HTMLInputElement>("#entry-title")?.value.trim() ?? "",
-    body: (document.querySelector<HTMLTextAreaElement>("#entry-body-field")?.value ?? "").replace(/\s+$/, ""),
+    body: entryBodyValue().replace(/\s+$/, ""),
   };
 }
 /**
@@ -1048,24 +1082,8 @@ function settingsMarkup() {
   return `<h2>SYSTEM SETTINGS<small>终端偏好设置</small></h2><p class="settings-intro">${operatorId} <span>·</span> SESSION AUTHORIZED</p><div class="settings-identity"><div><strong>Operater ID</strong></div><input id="operator-id" type="text" maxlength="24" autocomplete="off" spellcheck="false" value="${escapeHtml(operatorId)}"/></div>${isWallpaper ? '<p class="wallpaper-settings-note">每次启动都会读取 Wallpaper Engine 中的设置。在此修改仅对当前运行生效，无法持久保存；如需保留，请在 Wallpaper Engine 的壁纸属性中调整。</p>' : ""}${settingsGroup("display", "显示与画面", "配色 · 三维 · 画质", display)}${settingsGroup("motion", "动效与开场", "开场与动效开关", motion)}${settingsGroup("sound", "声音", "音效与音乐", sound, true)}${isWallpaper ? "" : settingsGroup("report", "报告", "周报 · 月报 · 年报", reportSettingsMarkup())}${settingsGroup("control", "控制与维护", "快捷键与重置", control)}<div class="modal-bottom"><span>ANALYSIS OS / 1.0 · 使用 MiSans 字体（小米） <a href="${assetUrl("fonts/MiSans-license.pdf")}" target="_blank" rel="noopener">字体许可</a></span><span>POWERED BY RHINE LAB</span></div>`;
 }
 
-let previewTimer = 0;
-/** 编辑中的实时预览：只重渲染预览窗格，不碰输入框（否则光标会跳）。 */
-function paintMarkdownPreview(): void {
-  const field = document.querySelector<HTMLTextAreaElement>("#entry-body-field");
-  const preview = document.querySelector<HTMLElement>("#entry-body-preview");
-  if (!field || !preview) return;
-  preview.innerHTML = renderMarkdown(field.value);
-  // 在文末追加时让预览跟上；改中间时不动滚动，免得预览乱跳。
-  if (field.selectionStart === field.value.length) preview.scrollTop = preview.scrollHeight;
-}
-
 document.addEventListener("input", (e) => {
   const quick = e.target as HTMLInputElement;
-  if (quick.id === "entry-body-field") {
-    clearTimeout(previewTimer);
-    previewTimer = window.setTimeout(paintMarkdownPreview, 120);
-    return;
-  }
   if (quick.id === "entry-search") {
     board.query = quick.value;
     renderEntryBody();
@@ -1202,7 +1220,7 @@ document.addEventListener("click", (e) => {
         return;
       }
       const period = existing?.period ?? editingPeriod;
-      const body = (document.querySelector<HTMLTextAreaElement>("#entry-body-field")?.value ?? "").trim();
+      const body = entryBodyValue().trim();
       if (!period) { notify("没有选定周期"); return; }
       if (!body) { notify("空报告没有保存"); return; }
       const entry: Entry = existing ? { ...existing } : newEntry(periodRange(period).to, Date.now(), "report");
@@ -1217,7 +1235,7 @@ document.addEventListener("click", (e) => {
       if (action === "delete-entry") { notify("日志不能删除"); return; }
       // 盒子只装日志，1600 条封顶（≈4 年日更；到顶后只能清本机数据重来）。
       if (!existing && !canAdd(board.entries.filter(isLog).length)) { notify("日志盒子已满（1600 条）"); return; }
-      const body = (document.querySelector<HTMLTextAreaElement>("#entry-body-field")?.value ?? "").replace(/\s+$/, "");
+      const body = entryBodyValue().replace(/\s+$/, "");
       if (!body) { notify("空日志没有保存"); return; }
       const entry: Entry = existing ? { ...existing } : newEntry(board.today, editingOpenedAt ?? Date.now(), "log");
       entry.kind = "log";
@@ -1322,17 +1340,14 @@ document.addEventListener("click", (e) => {
     return;
   }
   if (action === "editor-view") {
-    const editor = document.querySelector<HTMLElement>(".md-editor");
-    if (!editor) return;
-    const preview = editor.dataset.view !== "preview";
-    editor.dataset.view = preview ? "preview" : "edit";
+    const live = entryEditor?.toggleLive();
+    if (live === undefined) return;
     document.querySelectorAll<HTMLElement>(".md-view").forEach((button) => {
-      const label = preview ? "编辑" : "预览";
+      const label = live ? "源码" : "实时渲染";
       button.setAttribute("aria-label", label);
       button.title = label;
-      button.setAttribute("aria-pressed", String(preview));
+      button.setAttribute("aria-pressed", String(!live));
     });
-    if (!preview) document.querySelector<HTMLTextAreaElement>("#entry-body-field")?.focus();
     audio.play("ui-tick");
     return;
   }

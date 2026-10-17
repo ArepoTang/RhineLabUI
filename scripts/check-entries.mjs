@@ -214,15 +214,15 @@ test("编辑器：待办带日期、时间与删除；日志只有正文、没�
   assert.match(editing, /data-action="delete-entry"/);
   assert.match(editing, /value="晨会"/);
   assert.match(editing, /value="09:30"/);
-  assert.match(editing, />正文</);
-  assert.match(editing, /class="entry-preview markdown" id="entry-body-preview"[^>]*><p>正文<\/p>/, "待办正文也有预渲染预览（边写边看）");
+  assert.match(editing, /id="entry-body-editor"/, "待办正文挂 CodeMirror 编辑器");
+  assert.ok(!editing.includes("<textarea"), "正文不再用 textarea（实时渲染在编辑区里）");
   const fresh = editorMarkup(undefined, "2026-10-07");
   assert.ok(!fresh.includes("delete-entry"));
   assert.match(fresh, /value="2026-10-07"/);
 
   const editingLog = editorMarkup(log("l", "2026-10-06", "今天"), "2026-10-06");
   assert.match(editingLog, /写日志|编辑日志/);
-  assert.match(editingLog, /id="entry-body-field"/);
+  assert.match(editingLog, /id="entry-body-editor"/);
   assert.ok(!editingLog.includes("delete-entry"), "日志不能删除");
   assert.ok(!editingLog.includes('id="entry-date"'), "日志没有日期字段");
   assert.ok(!editingLog.includes('id="entry-time"'), "日志没有时间字段");
@@ -475,7 +475,7 @@ test("报告编辑器：周期写进标题、正文可改、可删除", () => {
   const md = editorMarkup(entry, "2026-10-18");
   assert.match(md, /EDIT REPORT/);
   assert.match(md, /2026 年第 42 周 · 2026-10-12 至 2026-10-18/);
-  assert.match(md, /<textarea id="entry-body-field"[^>]*>总结正文<\/textarea>/);
+  assert.match(md, /id="entry-body-editor"/, "报告正文也挂同一个编辑器");
   assert.match(md, /data-action="delete-entry"/, "报告能删（删掉即等于重做）");
   const missing = editorMarkup(undefined, "2026-10-18", "report");
   assert.match(missing, /NEW REPORT/);
@@ -489,13 +489,13 @@ test("日历格子：有报告的那天多一个三角标记", () => {
   assert.match(body, /报告<\/span><span>1 份<\/span>/, "选中日里单列一段报告");
 });
 
-test("日志编辑器：全屏、有预览窗格、抬头带预览开关，工具条不在编辑器里", () => {
+test("日志编辑器：全屏、正文交给实时渲染编辑器、抬头带源码开关", () => {
   const html = editorMarkup(log("l", "2026-10-06", "正文"), "2026-10-06");
-  assert.match(html, /class="md-editor" data-view="edit"/);
-  assert.match(html, /<textarea id="entry-body-field"/, "输入框仍是 main.ts 认的那个 id");
-  assert.match(html, /class="md-pane md-pane-preview markdown" id="entry-body-preview"/, "预览窗格预渲染了正文");
-  assert.match(html, /id="entry-body-preview"[^>]*><p>正文<\/p>/, "预览里已经有渲染好的正文");
-  assert.match(html, /class="md-view" data-action="editor-view"/, "抬头上的预览开关");
+  assert.match(html, /class="md-editor" data-live="true"/);
+  assert.match(html, /id="entry-body-editor"/, "挂载点 id 是 main.ts 认的那个");
+  assert.match(html, /class="md-view" data-action="editor-view"/, "抬头上的源码 / 实时渲染开关");
+  assert.ok(!html.includes("<textarea"), "不再有独立输入框");
+  assert.ok(!html.includes("md-pane"), "不再有并排预览窗格");
   assert.ok(!html.includes("data-md="), "没有格式栏，正文靠直接写 Markdown");
   assert.ok(!html.includes("md-bar"), "键盘配件栏已按用户要求删掉");
 });

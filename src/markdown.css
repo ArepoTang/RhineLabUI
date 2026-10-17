@@ -26,24 +26,30 @@
 .markdown th, .markdown td { padding: 8px 10px; border: 1px solid var(--theme-line, #bdb8ad); text-align: left; }
 
 /* ---- 全屏编辑器 ---- */
-/* 尺寸、背景、无边框全交给 .entries-modal（日历已经验证过的那套全屏规则），
-   这里只负责把编辑器撑满、让输入框吃掉剩余高度。 */
-/* 尺寸/背景仍与日历同源，但宽高在这里也写一遍：编辑器本来就要铺满可视区域，不靠别人的规则成全。 */
+/* 尺寸、背景、无边框全交给 .entries-modal（日历已经验证过的那套全屏规则）；
+   宽高在这里也写一遍：编辑器本来就要铺满可视区域，不靠别人的规则成全。 */
 #stage .terminal-modal.editor-full { width: 100%; max-width: none; height: 100%; max-height: none; display: flex; flex-direction: column; }
 /* 手机布局的遮罩会按 --modal-top / --modal-height 避开软键盘；这里只去掉内边距，
-   高度继续跟着可视区域走 —— 否则键盘弹起时下方的实时预览和保存按钮会被盖住。 */
+   高度继续跟着可视区域走 —— 否则键盘弹起时保存按钮会被盖住。 */
 #stage .editor-backdrop { padding: 0; align-items: stretch; justify-content: stretch; }
 .editor-full .settings-intro { margin-bottom: 12px; }
 .editor-full .entry-actions { flex: none; padding: 14px 0 0; }
 
 .md-editor { flex: 1; display: flex; flex-direction: column; min-height: 0; }
-/* 窗格容器必须把整块高度吃满：grid 的隐式行是 auto，不加 grid-template-rows: 1fr
-   的话输入框只会按 rows 属性那么高 —— 那就是"编辑框"而不是全屏编辑。 */
-.md-panes { flex: 1; display: grid; grid-template-rows: 1fr; min-height: 0; padding-top: 12px; }
-.md-pane { display: flex; min-height: 0; overflow: hidden; }
-.md-pane-edit textarea { flex: 1; width: 100%; height: 100%; padding: 0; font: inherit; font-size: 14px; line-height: 1.95; color: var(--theme-ink, #080a08); background: none; border: 0; outline: none; resize: none; }
-.md-pane-preview { display: block; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; }
-/* 编辑器抬头里的「预览 / 编辑」开关：图标按钮，跟在日期后面 */
+/* 待办卡片里的编辑器不是全屏：给一个固定高度，自己滚动。 */
+.md-editor-todo { flex: none; padding: 8px 12px; background: var(--theme-field, #ece9e4); border: 1px solid var(--theme-line, #bdb8ad); }
+.md-editor-todo .md-edit { height: min(240px, 40vh); }
+.md-edit { flex: 1; display: flex; min-height: 0; overflow: hidden; }
+.md-editor .md-edit .cm-editor { flex: 1; min-width: 0; min-height: 0; }
+/* 选择器带上 .md-editor：CodeMirror 自己注入的基础样式也是两级选择器，同级时它会赢。 */
+.md-editor .md-edit .cm-scroller { font-family: inherit; font-size: 14px; line-height: 1.95; color: var(--theme-ink, #080a08); }
+.md-editor .md-edit .cm-content { padding: 4px 0; caret-color: var(--theme-ink, #080a08); }
+.md-editor .md-edit .cm-line { padding: 0; }
+.md-editor .md-edit .cm-focused { outline: none; }
+/* 「源码」模式：离开实时渲染时用等宽字体，避免和排版结果混淆。 */
+.md-editor[data-live="false"] .cm-scroller { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; }
+
+/* 抬头里的「源码 / 实时渲染」开关：图标按钮，跟在日期后面 */
 .editor-full .settings-intro { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
 .editor-full .md-view { display: grid; place-items: center; width: 34px; height: 34px; padding: 0; border: 1px solid var(--theme-line, #bdb8ad); color: var(--theme-ink, #080a08); background: none; }
 .editor-full .md-view[aria-pressed="true"] { color: var(--theme-paper, #e8e5e1); background: var(--theme-ink, #080a08); border-color: var(--theme-ink, #080a08); }
@@ -51,19 +57,23 @@
    否则浅色下是黑块、暗色下黑底黑图标直接看不见。 */
 .md-view svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.2; stroke-linecap: square; }
 
-/* 窄屏（手机）：编辑时下方留一条实时预览（边写边渲染）；
-   「预览」按钮仍然可以把预览切成整屏，再按一次回到边写边看。 */
-.md-editor[data-view="edit"] .md-pane-preview { display: none; }
-.md-editor[data-view="preview"] .md-pane-edit { display: none; }
-@media (max-width: 899px) {
-  .md-editor[data-view="edit"] .md-panes { grid-template-rows: minmax(0, 1fr) minmax(0, 32%); }
-  .md-editor[data-view="edit"] .md-pane-preview { display: block; border-top: 1px solid var(--theme-line, #bdb8ad); padding-top: 10px; }
-}
-
-/* 宽屏：两栏并排，切换按钮就没有意义了 */
-@media (min-width: 900px) {
-  .md-editor[data-view] > .md-panes > .md-pane { display: block; }
-  .md-editor[data-view] > .md-panes > .md-pane-edit { display: flex; }
-  .md-editor .md-panes { grid-template-columns: 1fr 1fr; gap: 24px; }
-  .md-editor .md-pane-preview { padding-left: 24px; border-left: 1px solid var(--theme-line, #bdb8ad); }
-}
+/* ---- 实时渲染出来的样子（只作用于编辑器，和正文 .markdown 分开） ---- */
+.md-editor .md-h1 { font-size: 22px; font-weight: 500; line-height: 1.55; padding-top: 10px; }
+.md-editor .md-h2 { font-size: 19px; font-weight: 500; line-height: 1.6; padding-top: 8px; }
+.md-editor .md-h3 { font-size: 17px; font-weight: 500; line-height: 1.65; padding-top: 6px; }
+.md-editor .md-h4 { font-size: 15px; font-weight: 600; padding-top: 4px; }
+.md-editor .md-h5,
+.md-editor .md-h6 { font-size: 14px; font-weight: 600; color: var(--theme-muted, #77756d); }
+.md-editor .md-li { padding-left: 1.35em; text-indent: -1.35em; }
+.md-editor .md-quote { border-left: 2px solid var(--theme-line, #a6a49c); padding-left: 12px; color: var(--theme-muted, #5f5d55); }
+.md-editor .md-code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; line-height: 1.75; background: var(--theme-field, #ece9e4); border-left: 2px solid var(--theme-line, #bdb8ad); padding-left: 10px; }
+.md-editor .md-fence { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; color: var(--theme-muted, #77756d); min-height: 12px; }
+.md-editor .md-strong { font-weight: 600; }
+.md-editor .md-em { font-style: italic; }
+.md-editor .md-strike { color: var(--theme-muted, #77756d); text-decoration: line-through; }
+.md-editor .md-link { text-decoration: underline; text-underline-offset: 2px; }
+.md-editor .md-code-inline { padding: 1px 4px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; background: var(--theme-field, #ece9e4); border: 1px solid var(--theme-line, #d0c6b5); }
+.md-editor .md-bullet,
+.md-editor .md-check { margin-right: 0.5em; color: var(--theme-muted, #77756d); }
+.md-editor .md-check-on { color: var(--theme-ink, #080a08); }
+.md-editor .md-rule { display: block; height: 0; margin: 16px 0; border-top: 1px solid var(--theme-line, #bdb8ad); }

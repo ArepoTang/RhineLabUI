@@ -37,20 +37,75 @@ assert.match(link, /rel="noopener noreferrer"/, "外链不留 referrer");
 
 console.log("Markdown: 渲染 13 项、消毒 8 项断言通过。");
 
-// ---- 编辑器的布局链（全屏编辑靠这几条，缺一条就退回成"编辑框"） --------------
-// 教训：上一轮删格式栏的样式时把夹在中间的窗格规则一起删了，编辑器就直接变成 rows=16 的小框。
+// ---- 实时渲染（Typora 式）：藏源代码标记、光标处再露出来 --------------------
+const { liveMarkdownSpans } = await import("../src/markdown-editor.ts");
+const hides = (spans) => spans.filter((s) => s.kind === "hide").map((s) => [s.from, s.to]);
+const has = (spans, kind, value) => spans.some((s) => s.kind === kind && s.value === value);
+
+const heading = liveMarkdownSpans("## 标题");
+assert.deepEqual(hides(heading), [[0, 3]], "标题的 ## 藏起来");
+assert.ok(has(heading, "line", "md-h2"), "行上挂标题样式");
+assert.deepEqual(hides(liveMarkdownSpans("## 标题", [{ from: 4, to: 4 }])), [], "光标在行内时露出 ##");
+
+const strong = liveMarkdownSpans("**粗体**");
+assert.deepEqual(hides(strong), [[0, 2], [4, 6]], "粗体星号藏起来");
+assert.ok(strong.some((s) => s.kind === "mark" && s.value === "md-strong" && s.from === 2 && s.to === 4), "粗体内容套样式");
+assert.deepEqual(hides(liveMarkdownSpans("**粗体**", [{ from: 3, to: 3 }])), [], "光标进到粗体里时露出星号");
+assert.deepEqual(hides(liveMarkdownSpans("**粗体**", [{ from: 6, to: 6 }])), [[0, 2], [4, 6]], "打完收尾 ** 后光标停在后面也不露星号");
+assert.deepEqual(hides(liveMarkdownSpans("**粗体**", [{ from: 5, to: 5 }])), [], "光标踩到收尾星号时才露出");
+
+const code = liveMarkdownSpans("行内 `x` 代码");
+assert.equal(hides(code).length, 2, "行内代码的反引号藏起来");
+assert.ok(has(code, "mark", "md-code-inline"));
+
+const mdLink = liveMarkdownSpans("[文档](https://a.b)");
+assert.deepEqual(hides(mdLink), [[0, 1], [3, 17]], "链接只留文字");
+assert.ok(mdLink.some((s) => s.kind === "mark" && s.value === "md-link" && s.from === 1 && s.to === 3));
+assert.deepEqual(hides(liveMarkdownSpans("[文档](https://a.b)", [{ from: 2, to: 2 }])), [], "光标在链接里时露出源码");
+
+const bullet = liveMarkdownSpans("- 项目");
+assert.ok(has(bullet, "line", "md-li"));
+assert.ok(bullet.some((s) => s.kind === "replace" && s.value === "bullet" && s.from === 0 && s.to === 2), "列表点换成圆点");
+const task = liveMarkdownSpans("- [x] 完成");
+assert.ok(task.some((s) => s.kind === "replace" && s.value === "check-on"), "任务项换成勾选框");
+assert.ok(has(liveMarkdownSpans("1. 项目"), "line", "md-li"), "有序列表保留数字但用列表排版");
+assert.ok(has(liveMarkdownSpans("> 引用"), "line", "md-quote"));
+assert.ok(liveMarkdownSpans("> 引用").some((s) => s.kind === "hide" && s.from === 0 && s.to === 2), "引用符藏起来");
+
+const block = liveMarkdownSpans("```\n# 不是标题\n```");
+assert.ok(has(block, "line", "md-fence"), "围栏行");
+assert.ok(has(block, "line", "md-code"), "围栏里的代码行");
+assert.ok(!block.some((s) => s.value === "md-h1"), "代码块里的 # 不当标题");
+assert.deepEqual(hides(block), [[0, 3], [11, 14]], "围栏标记藏起来");
+assert.ok(has(liveMarkdownSpans("---"), "replace", "rule"), "分割线换成一条线");
+
+const composing = liveMarkdownSpans("## 标题", [], true);
+assert.deepEqual(hides(composing), [], "输入法合成期间不藏任何标记");
+assert.ok(has(composing, "line", "md-h2"), "合成期间标题样式仍保留");
+
+for (const spans of [heading, strong, code, mdLink, block]) {
+  const hidden = spans.filter((s) => s.kind === "hide");
+  for (let i = 1; i < hidden.length; i++)
+    assert.ok(hidden[i].from >= hidden[i - 1].to, "隐藏区间不能重叠");
+  for (let i = 1; i < spans.length; i++)
+    assert.ok(spans[i].from >= spans[i - 1].from, "decoration 必须按位置排序");
+}
+console.log("Live editor: 边写边渲染断言通过。");
+
+// ---- 编辑器的布局链（全屏编辑靠这几条，缺一条编辑器就不铺满 / 不跟主题字体） ----
 const css = readFileSync(new URL("../src/markdown.css", import.meta.url), "utf8");
 for (const [rule, why] of [
   [/#stage \.terminal-modal\.editor-full \{[^}]*width: 100%/, "编辑器自己声明铺满宽度"],
   [/#stage \.terminal-modal\.editor-full \{[^}]*height: 100%/, "编辑器自己声明铺满高度"],
   [/\.md-editor \{[^}]*flex: 1/, "编辑器容器吃掉剩余高度"],
-  [/\.md-panes \{[^}]*grid-template-rows: 1fr/, "窗格行必须 1fr，否则输入框只有 rows 那么高"],
-  [/\.md-pane-edit textarea \{[^}]*height: 100%/, "输入框填满窗格"],
-  [/\.md-pane-preview \{[^}]*overflow-y: auto/, "预览窗格自己滚动"],
-  [/@media \(max-width: 899px\)[\s\S]*?\.md-editor\[data-view="edit"\] \.md-pane-preview \{ display: block/, "窄屏编辑时下方预览保持可见（边写边渲染）"],
+  [/\.md-edit \{[^}]*flex: 1/, "挂载点吃掉剩余高度"],
+  [/\.md-editor \.md-edit \.cm-editor \{[^}]*flex: 1/, "CodeMirror 填满挂载点"],
+  [/\.md-editor \.md-edit \.cm-scroller \{[^}]*font-family: inherit/, "编辑器跟主题字体，不用 CodeMirror 的 monospace"],
+  [/\.md-editor \.md-h1 \{/, "标题在编辑区里直接渲染"],
+  [/\.md-editor \.md-strong \{/, "粗体在编辑区里直接渲染"],
 ]) {
   assert.match(css, rule, why);
 }
-// 遮罩曾写死 top:0/height:100%，软键盘弹起时把下方的实时预览和保存按钮盖住。
+// 遮罩曾写死 top:0/height:100%，软键盘弹起时把下方的保存按钮盖住。
 assert.ok(!/#stage \.editor-backdrop \{[^}]*height: 100%/.test(css), "编辑器遮罩不能写死高度，高度要跟可视区域走");
-console.log("Editor layout: 布局链 7 条 + 图标 3 条断言通过。");
+console.log("Editor layout: 布局链 8 条 + 源码开关断言通过。");
