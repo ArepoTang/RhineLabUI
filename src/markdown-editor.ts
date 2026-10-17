@@ -82,6 +82,8 @@ export function liveMarkdownSpans(
     }
     // 空行结束引用；紧接着的普通行按 CommonMark 的 lazy continuation 仍算引用。
     if (lineText.trim() === "") {
+      // 引用刚结束的那一行空行：单独收窄，退出引用时不会留出一整行高。
+      if (quote) addLine(lineFrom, "md-quote-gap");
       quote = false;
       continue;
     }
@@ -95,7 +97,8 @@ export function liveMarkdownSpans(
       if (first) classes.push("md-quote-start");
       if (depth > 1) classes.push(`md-quote-${Math.min(depth, 3)}`);
       addLine(lineFrom, classes.join(" "));
-      if (!touched(lineFrom, lineTo)) addHide(lineFrom, at(quoteMark[0].length));
+      // 标记只在这一小段上才露出来；光标在后面的正文里时已经变成大引号。
+      if (!touched(lineFrom, at(quoteMark[0].length) - 1)) addHide(lineFrom, at(quoteMark[0].length));
       inlineDecorations(lineText, lineFrom, addMark, addHide, touched);
       continue;
     }
@@ -118,7 +121,7 @@ export function liveMarkdownSpans(
     const task = /^(\s*)([-*+])\s+\[([ xX])\]\s+/.exec(lineText);
     if (task) {
       addLine(lineFrom, "md-li");
-      if (!composing && !touched(lineFrom, lineTo))
+      if (!composing && !touched(lineFrom, at(task[0].length) - 1))
         spans.push({
           from: at(task[1].length),
           to: at(task[0].length),
@@ -132,7 +135,7 @@ export function liveMarkdownSpans(
     const bullet = /^(\s*)([-*+])\s+/.exec(lineText);
     if (bullet) {
       addLine(lineFrom, "md-li");
-      if (!composing && !touched(lineFrom, lineTo))
+      if (!composing && !touched(lineFrom, at(bullet[0].length) - 1))
         spans.push({
           from: at(bullet[1].length),
           to: at(bullet[0].length),
@@ -152,7 +155,7 @@ export function liveMarkdownSpans(
     const heading = /^(#{1,6})\s+/.exec(lineText);
     if (heading) {
       addLine(lineFrom, `md-h${heading[1].length}`);
-      if (!touched(lineFrom, lineTo)) addHide(lineFrom, at(heading[0].length));
+      if (!touched(lineFrom, at(heading[0].length) - 1)) addHide(lineFrom, at(heading[0].length));
       inlineDecorations(lineText, lineFrom, addMark, addHide, touched);
       continue;
     }

@@ -45,7 +45,8 @@ const has = (spans, kind, value) => spans.some((s) => s.kind === kind && s.value
 const heading = liveMarkdownSpans("## 标题");
 assert.deepEqual(hides(heading), [[0, 3]], "标题的 ## 藏起来");
 assert.ok(has(heading, "line", "md-h2"), "行上挂标题样式");
-assert.deepEqual(hides(liveMarkdownSpans("## 标题", [{ from: 4, to: 4 }])), [], "光标在行内时露出 ##");
+assert.deepEqual(hides(liveMarkdownSpans("## 标题", [{ from: 3, to: 3 }])), [[0, 3]], "打完 ## 和空格后立即隐藏（光标在正文）");
+assert.deepEqual(hides(liveMarkdownSpans("## 标题", [{ from: 1, to: 1 }])), [], "光标压到 ## 上才露出源码");
 
 const strong = liveMarkdownSpans("**粗体**");
 assert.deepEqual(hides(strong), [[0, 2], [4, 6]], "粗体星号藏起来");
@@ -66,12 +67,16 @@ assert.deepEqual(hides(liveMarkdownSpans("[文档](https://a.b)", [{ from: 2, to
 const bullet = liveMarkdownSpans("- 项目");
 assert.ok(has(bullet, "line", "md-li"));
 assert.ok(bullet.some((s) => s.kind === "replace" && s.value === "bullet" && s.from === 0 && s.to === 2), "列表点换成圆点");
+assert.ok(!liveMarkdownSpans("- 项目", [{ from: 0, to: 0 }]).some((s) => s.kind === "replace" && s.value === "bullet"), "光标在行首时保留原始 -，方便删改");
+assert.ok(liveMarkdownSpans("- 项目", [{ from: 2, to: 2 }]).some((s) => s.kind === "replace" && s.value === "bullet"), "打完 - 空格后光标在正文时显示为圆点");
 const task = liveMarkdownSpans("- [x] 完成");
 assert.ok(task.some((s) => s.kind === "replace" && s.value === "check-on"), "任务项换成勾选框");
 assert.ok(has(liveMarkdownSpans("1. 项目"), "line", "md-li"), "有序列表保留数字但用列表排版");
 assert.ok(liveMarkdownSpans("> 引用").some((s) => s.kind === "line" && s.value.includes("md-quote")));
 assert.ok(liveMarkdownSpans("> 引用").some((s) => s.kind === "hide" && s.from === 0 && s.to === 2), "引用符藏起来");
-const quoteLines = (spans) => spans.filter((s) => s.kind === "line" && s.value.includes("md-quote"));
+assert.deepEqual(hides(liveMarkdownSpans("> 引用", [{ from: 3, to: 3 }])), [[0, 2]], "打完 > 空格后光标在正文里也保持隐藏");
+assert.deepEqual(hides(liveMarkdownSpans("> 引用", [{ from: 0, to: 0 }])), [], "光标压到 > 上才露出源码");
+const quoteLines = (spans) => spans.filter((s) => s.kind === "line" && s.value.split(" ").includes("md-quote"));
 assert.equal(quoteLines(liveMarkdownSpans("> 第一行\n> 第二行")).length, 2, "每行都带 > 的引用两行都渲染");
 assert.equal(liveMarkdownSpans("> 第一行\n> 第二行").filter((s) => s.kind === "line" && s.value.includes("md-quote-start")).length, 1, "整段引用只在第一行放大引号");
 assert.deepEqual(hides(liveMarkdownSpans("> 第一行\n> 第二行")), [[0, 2], [6, 8]], "两行的 > 都藏起来");
@@ -81,6 +86,7 @@ assert.deepEqual(hides(lazyQuote), [[0, 2]], "续行没有需要藏的标记");
 assert.ok(liveMarkdownSpans("> > 嵌套").some((s) => s.kind === "line" && s.value.includes("md-quote-2")), "多级引用多缩进一层");
 assert.deepEqual(hides(liveMarkdownSpans("> > 嵌套")), [[0, 4]], "多级引用的两个 > 都藏起来");
 assert.equal(quoteLines(liveMarkdownSpans("> 引用\n\n普通段落")).length, 1, "空行结束引用");
+assert.ok(liveMarkdownSpans("> 引用\n\n普通段落").some((s) => s.kind === "line" && s.value.includes("md-quote-gap")), "引用结束的空行单独收窄");
 assert.equal(quoteLines(liveMarkdownSpans("> 引用\n- 列表")).length, 1, "引用后直接接列表就结束引用");
 
 const block = liveMarkdownSpans("```\n# 不是标题\n```");
