@@ -31,7 +31,7 @@ export type MarkdownEditor = {
 export type LiveSpan = {
   from: number;
   to: number;
-  kind: "hide" | "mark" | "line" | "replace" | "widget";
+  kind: "hide" | "mark" | "line" | "replace";
   value: string;
 };
 
@@ -63,13 +63,6 @@ export function liveMarkdownSpans(
   let offset = 0;
   let fence = false;
   let quote = false;
-  let lastQuoteEnd: number | null = null;
-  // 引用结束时在最后一行末尾补收尾的大引号。
-  const closeQuote = () => {
-    if (lastQuoteEnd === null) return;
-    spans.push({ from: lastQuoteEnd, to: lastQuoteEnd, kind: "widget", value: "quote-close" });
-    lastQuoteEnd = null;
-  };
   for (const lineText of text.split("\n")) {
     const lineFrom = offset;
     const lineTo = offset + lineText.length;
@@ -77,7 +70,6 @@ export function liveMarkdownSpans(
     const at = (index: number) => lineFrom + index;
 
     if (/^\s{0,3}(```|~~~)/.test(lineText)) {
-      closeQuote();
       quote = false;
       addLine(lineFrom, "md-fence");
       if (!touched(lineFrom, lineTo)) addHide(lineFrom, lineTo);
@@ -90,7 +82,6 @@ export function liveMarkdownSpans(
     }
     // 空行结束引用；紧接着的普通行按 CommonMark 的 lazy continuation 仍算引用。
     if (lineText.trim() === "") {
-      closeQuote();
       quote = false;
       continue;
     }
@@ -104,7 +95,6 @@ export function liveMarkdownSpans(
       if (first) classes.push("md-quote-start");
       if (depth > 1) classes.push(`md-quote-${Math.min(depth, 3)}`);
       addLine(lineFrom, classes.join(" "));
-      lastQuoteEnd = lineTo;
       if (!touched(lineFrom, lineTo)) addHide(lineFrom, at(quoteMark[0].length));
       inlineDecorations(lineText, lineFrom, addMark, addHide, touched);
       continue;
@@ -113,11 +103,9 @@ export function liveMarkdownSpans(
       // 引用里的续行没写 >：只要不是新块的开始，就仍按引用显示。
       if (!/^(#{1,6}\s|[-*+]\s|\d+[.)]\s|```|~~~|(?:-[ \t]*){3,}|(?:\*[ \t]*){3,})/.test(lineText)) {
         addLine(lineFrom, "md-quote");
-        lastQuoteEnd = lineTo;
         inlineDecorations(lineText, lineFrom, addMark, addHide, touched);
         continue;
       }
-      closeQuote();
       quote = false;
     }
 
@@ -171,8 +159,6 @@ export function liveMarkdownSpans(
 
     inlineDecorations(lineText, lineFrom, addMark, addHide, touched);
   }
-
-  closeQuote();
 
   // 行装饰是零长度，必须排在同一个起点的隐藏/标记之前。
   spans.sort((a, b) => a.from - b.from || a.to - b.to);
@@ -295,21 +281,6 @@ class CheckWidget extends WidgetType {
   }
 }
 
-class QuoteCloseWidget extends WidgetType {
-  eq() {
-    return true;
-  }
-  toDOM() {
-    const span = document.createElement("span");
-    span.className = "md-quote-close";
-    span.textContent = "”";
-    return span;
-  }
-  ignoreEvent() {
-    return true;
-  }
-}
-
 class RuleWidget extends WidgetType {
   eq() {
     return true;
@@ -333,8 +304,6 @@ function presentation(spans: LiveSpan[]): DecorationSet {
     if (span.kind === "mark") builder.add(span.from, span.to, Decoration.mark({ class: span.value }));
     else if (span.kind === "hide") builder.add(span.from, span.to, HIDE);
     else if (span.kind === "line") builder.add(span.from, span.to, Decoration.line({ class: span.value }));
-    else if (span.kind === "widget")
-      builder.add(span.from, span.to, Decoration.widget({ widget: new QuoteCloseWidget(), side: 1 }));
     else {
       const widget =
         span.value === "bullet"

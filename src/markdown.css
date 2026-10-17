@@ -16,10 +16,9 @@
 .markdown ul, .markdown ol { margin: 10px 0; padding-left: 22px; }
 .markdown li { margin: 4px 0; }
 .markdown li input[type="checkbox"] { margin: 0 6px 0 0; accent-color: var(--theme-ink, #080a08); }
-.markdown blockquote { position: relative; margin: 18px 0; padding: 0 0 0 36px; line-height: 2.1; color: var(--theme-muted, #5f5d55); }
+.markdown blockquote { position: relative; margin: 18px 0; padding: 0 0 0 56px; color: var(--theme-muted, #5f5d55); }
 /* 引用不用竖线：左上角一枚大引号，灰色随亮/暗主题走。 */
 .markdown blockquote::before { content: "“"; position: absolute; left: 0; top: -8px; font: 400 40px/1 Georgia, "Times New Roman", serif; color: var(--theme-muted, #77756d); opacity: .6; pointer-events: none; }
-.markdown blockquote > :last-child::after { content: "”"; margin-left: 3px; font: 400 40px/0 Georgia, "Times New Roman", serif; vertical-align: -0.18em; color: var(--theme-muted, #77756d); opacity: .6; }
 .markdown code { padding: 1px 5px; font-family: ui-monospace, "MiSans", monospace; font-size: 12px; background: var(--theme-field, #ece9e4); border: 1px solid var(--theme-line, #d0c6b5); }
 .markdown pre { margin: 12px 0; padding: 14px; overflow-x: auto; background: var(--theme-field, #ece9e4); border: 1px solid var(--theme-line, #bdb8ad); }
 .markdown pre code { padding: 0; border: 0; background: none; }
@@ -68,13 +67,12 @@
 .md-editor .md-h5,
 .md-editor .md-h6 { font-size: 14px; font-weight: 600; color: var(--theme-muted, #77756d); }
 .md-editor .md-li { padding-left: 1.35em; text-indent: -1.35em; }
-.md-editor .md-quote { padding-left: 36px; line-height: 2.1; color: var(--theme-muted, #5f5d55); }
+.md-editor .md-quote { padding-left: 52px; color: var(--theme-muted, #5f5d55); }
 /* 整段引用只在第一行放一枚大引号；绝对定位，不参与行高测量。 */
 .md-editor .md-quote-start { position: relative; }
-.md-editor .md-quote-start::before { content: "“"; position: absolute; left: 0; top: -6px; font: 400 32px/1 Georgia, "Times New Roman", serif; color: var(--theme-muted, #77756d); opacity: .6; pointer-events: none; }
-.md-editor .md-quote-close { display: inline-block; margin-left: 3px; font: 400 32px/0 Georgia, "Times New Roman", serif; vertical-align: -0.18em; color: var(--theme-muted, #77756d); opacity: .6; pointer-events: none; }
-.md-editor .md-quote-2 { padding-left: 72px; }
-.md-editor .md-quote-3 { padding-left: 108px; }
+.md-editor .md-quote-start::before { content: "“"; position: absolute; left: 4px; top: -6px; font: 400 32px/1 Georgia, "Times New Roman", serif; color: var(--theme-muted, #77756d); opacity: .6; pointer-events: none; }
+.md-editor .md-quote-2 { padding-left: 88px; }
+.md-editor .md-quote-3 { padding-left: 124px; }
 .md-editor .md-code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; line-height: 1.75; background: var(--theme-field, #ece9e4); border-left: 2px solid var(--theme-line, #bdb8ad); padding-left: 10px; }
 .md-editor .md-fence { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; color: var(--theme-muted, #77756d); min-height: 12px; }
 .md-editor .md-strong { font-weight: 600; }

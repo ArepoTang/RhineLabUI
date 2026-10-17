@@ -82,11 +82,6 @@ assert.ok(liveMarkdownSpans("> > 嵌套").some((s) => s.kind === "line" && s.val
 assert.deepEqual(hides(liveMarkdownSpans("> > 嵌套")), [[0, 4]], "多级引用的两个 > 都藏起来");
 assert.equal(quoteLines(liveMarkdownSpans("> 引用\n\n普通段落")).length, 1, "空行结束引用");
 assert.equal(quoteLines(liveMarkdownSpans("> 引用\n- 列表")).length, 1, "引用后直接接列表就结束引用");
-const quoteClose = (spans) => spans.filter((s) => s.kind === "widget" && s.value === "quote-close");
-assert.deepEqual(quoteClose(liveMarkdownSpans("> 引用")).map((s) => s.from), [4], "引用末尾补收尾大引号");
-assert.deepEqual(quoteClose(lazyQuote).map((s) => s.from), [9], "续行引用在最后一行末尾收尾");
-assert.deepEqual(quoteClose(liveMarkdownSpans("> 引用\n\n普通段落")).map((s) => s.from), [4], "空行前收掉引用");
-assert.deepEqual(quoteClose(liveMarkdownSpans("> > 嵌套")).length, 1, "嵌套引用也只收尾一次");
 
 const block = liveMarkdownSpans("```\n# 不是标题\n```");
 assert.ok(has(block, "line", "md-fence"), "围栏行");
