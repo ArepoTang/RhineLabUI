@@ -9,7 +9,9 @@ if (process.env.CF_PAGES === '1' && process.env.CF_PAGES_URL) {
   officialPagesBuild = host === 'rhine-lab-ui.pages.dev' || host.endsWith('.rhine-lab-ui.pages.dev');
 }
 const officialBuild = officialPagesBuild ||
-  process.env.VERCEL_PROJECT_ID === 'prj_KyOQlIfl3qhHkI4SUpiD5tbFTE5w';
+  process.env.VERCEL_PROJECT_ID === 'prj_KyOQlIfl3qhHkI4SUpiD5tbFTE5w' ||
+  // 安卓 APK 也打包授权字体：用户 2026-10-17 确认 App 内分发。
+  process.env.RHINE_NOVECENTO_BUNDLE === '1';
 const sources = JSON.parse(await readFile(new URL('../verification/boot-lettering/webfont-sources.json', import.meta.url), 'utf8'));
 const files = [
   ...Object.entries(sources).map(([weight, source]) => ({

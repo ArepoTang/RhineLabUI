@@ -26,6 +26,7 @@
 
 - 2026-09-11：用户要求中央开场文案中适合的位置统一使用 Novecento Sans Wide。访问、身份、请求、处理、授权提示使用 Normal；欢迎三行使用 Bold。后续按用户纠正与原片叠加比较，左上 RHINE LAB 使用 DemiBold，下方两行保留 MiSans。沿用原时间轴与 HUD。
 - 用户后续授权从 MyFonts 领取 Normal、DemiBold、Bold 正式 Webfont 并直接替换，本机已领取并接入。public/fonts/novecento 为独立许可资源，排除 Git；有完整字体包时使用原始 WOFF2，其他检出或加载失败保留既有固定图形。来源、再制作与回归见 verification/BOOT-LETTERING.md。网页年度许可不等于已确认创意工坊分发授权，本轮未上传。
+- 2026-10-17：用户确认安卓 APK 也分发这套字体（开场自定义操作员 ID 原本回退 MiSans，与其余 Novecento 文字不一致）。安卓 CI 构建网页时设 `RHINE_NOVECENTO_BUNDLE=1`，`scripts/prepare-webfonts.mjs` 从正式站点取回四份资源并逐个校验 SHA-256；字体仍不进 Git，缺字仍回退 MiSans。
 
 ## Wallpaper Engine 实验分支
 

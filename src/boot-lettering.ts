@@ -88,6 +88,9 @@ export class BootLettering {
         letter.classList.add("boot-font-letter");
       });
     }
+    // 未收录的字串（自定义操作员 ID 等）走纯文本回退，也换成同一套 Novecento，
+    // 字体里没有的字形再交给 MiSans。
+    this.host.style.setProperty("--boot-fallback-family", `"Rhine Novecento ${this.phrases[0].weight}"`);
     this.host.dataset.letteringRenderer = "webfont";
   }
 

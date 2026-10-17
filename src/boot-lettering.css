@@ -54,6 +54,10 @@
   height: auto;
   overflow: visible;
   clip-path: none;
+  /* 字体套件加载后，未收录的字串也用同一套 Novecento；缺字回退 MiSans。 */
+  font-family: var(--boot-fallback-family, "MiSans"), "MiSans", sans-serif;
+  font-synthesis: none;
+  letter-spacing: var(--boot-phrase-tracking, 0);
 }
 #auth-message { --boot-phrase-tracking: -0.00909em; }
 .auth-status { top: 527px; gap: 10px; font-size: 21.35px; }
