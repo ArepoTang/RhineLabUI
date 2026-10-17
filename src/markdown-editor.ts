@@ -87,9 +87,13 @@ export function liveMarkdownSpans(
 
     const quoteMark = /^((?:\s{0,3}>\s?)+)/.exec(lineText);
     if (quoteMark) {
+      const first = !quote;
       quote = true;
       const depth = (quoteMark[0].match(/>/g) ?? []).length;
-      addLine(lineFrom, depth > 1 ? `md-quote md-quote-${Math.min(depth, 3)}` : "md-quote");
+      const classes = ["md-quote"];
+      if (first) classes.push("md-quote-start");
+      if (depth > 1) classes.push(`md-quote-${Math.min(depth, 3)}`);
+      addLine(lineFrom, classes.join(" "));
       if (!touched(lineFrom, lineTo)) addHide(lineFrom, at(quoteMark[0].length));
       inlineDecorations(lineText, lineFrom, addMark, addHide, touched);
       continue;

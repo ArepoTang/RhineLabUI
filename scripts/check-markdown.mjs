@@ -69,10 +69,11 @@ assert.ok(bullet.some((s) => s.kind === "replace" && s.value === "bullet" && s.f
 const task = liveMarkdownSpans("- [x] 完成");
 assert.ok(task.some((s) => s.kind === "replace" && s.value === "check-on"), "任务项换成勾选框");
 assert.ok(has(liveMarkdownSpans("1. 项目"), "line", "md-li"), "有序列表保留数字但用列表排版");
-assert.ok(has(liveMarkdownSpans("> 引用"), "line", "md-quote"));
+assert.ok(liveMarkdownSpans("> 引用").some((s) => s.kind === "line" && s.value.includes("md-quote")));
 assert.ok(liveMarkdownSpans("> 引用").some((s) => s.kind === "hide" && s.from === 0 && s.to === 2), "引用符藏起来");
 const quoteLines = (spans) => spans.filter((s) => s.kind === "line" && s.value.includes("md-quote"));
 assert.equal(quoteLines(liveMarkdownSpans("> 第一行\n> 第二行")).length, 2, "每行都带 > 的引用两行都渲染");
+assert.equal(liveMarkdownSpans("> 第一行\n> 第二行").filter((s) => s.kind === "line" && s.value.includes("md-quote-start")).length, 1, "整段引用只在第一行放大引号");
 assert.deepEqual(hides(liveMarkdownSpans("> 第一行\n> 第二行")), [[0, 2], [6, 8]], "两行的 > 都藏起来");
 const lazyQuote = liveMarkdownSpans("> 第一行\n第二行");
 assert.equal(quoteLines(lazyQuote).length, 2, "没写 > 的续行也跟着上一条引用渲染");
