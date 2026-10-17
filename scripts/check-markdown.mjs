@@ -112,7 +112,9 @@ for (const [rule, why] of [
   [/\.md-edit \{[^}]*flex: 1/, "挂载点吃掉剩余高度"],
   [/\.md-editor \.md-edit \.cm-editor \{[^}]*flex: 1/, "CodeMirror 填满挂载点"],
   [/\.md-editor \.md-edit \.cm-scroller \{[^}]*font-family: inherit/, "编辑器跟主题字体，不用 CodeMirror 的 monospace"],
-  [/\.md-editor \.md-h1 \{/, "标题在编辑区里直接渲染"],
+  [/\.md-editor \.md-edit \.cm-line\.md-h1 \{[^}]*padding-top/, "标题上边距压过 .cm-line 的 padding: 0"],
+  [/\.md-editor \.md-edit \.cm-line\.md-li \{[^}]*padding-left/, "列表缩进压过 .cm-line 的 padding: 0"],
+  [/\.md-editor \.md-edit \.cm-line\.md-quote \{[^}]*padding-left: 52px/, "引用缩进压过 .cm-line 的 padding: 0（引号和字不能贴在一起）"],
   [/\.md-editor \.md-strong \{/, "粗体在编辑区里直接渲染"],
 ]) {
   assert.match(css, rule, why);

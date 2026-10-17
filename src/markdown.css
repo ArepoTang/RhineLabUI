@@ -60,20 +60,20 @@
 .md-view svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.2; stroke-linecap: square; }
 
 /* ---- 实时渲染出来的样子（只作用于编辑器，和正文 .markdown 分开） ---- */
-.md-editor .md-h1 { font-size: 22px; font-weight: 500; line-height: 1.55; padding-top: 10px; }
-.md-editor .md-h2 { font-size: 19px; font-weight: 500; line-height: 1.6; padding-top: 8px; }
-.md-editor .md-h3 { font-size: 17px; font-weight: 500; line-height: 1.65; padding-top: 6px; }
-.md-editor .md-h4 { font-size: 15px; font-weight: 600; padding-top: 4px; }
-.md-editor .md-h5,
-.md-editor .md-h6 { font-size: 14px; font-weight: 600; color: var(--theme-muted, #77756d); }
-.md-editor .md-li { padding-left: 1.35em; text-indent: -1.35em; }
-.md-editor .md-quote { padding-left: 52px; color: var(--theme-muted, #5f5d55); }
+.md-editor .md-edit .cm-line.md-h1 { font-size: 22px; font-weight: 500; line-height: 1.55; padding-top: 10px; }
+.md-editor .md-edit .cm-line.md-h2 { font-size: 19px; font-weight: 500; line-height: 1.6; padding-top: 8px; }
+.md-editor .md-edit .cm-line.md-h3 { font-size: 17px; font-weight: 500; line-height: 1.65; padding-top: 6px; }
+.md-editor .md-edit .cm-line.md-h4 { font-size: 15px; font-weight: 600; padding-top: 4px; }
+.md-editor .md-edit .cm-line.md-h5,
+.md-editor .md-edit .cm-line.md-h6 { font-size: 14px; font-weight: 600; color: var(--theme-muted, #77756d); }
+.md-editor .md-edit .cm-line.md-li { padding-left: 1.35em; text-indent: -1.35em; }
+.md-editor .md-edit .cm-line.md-quote { padding-left: 52px; color: var(--theme-muted, #5f5d55); }
 /* 整段引用只在第一行放一枚大引号；绝对定位，不参与行高测量。 */
 .md-editor .md-quote-start { position: relative; }
 .md-editor .md-quote-start::before { content: "“"; position: absolute; left: 4px; top: -6px; font: 400 32px/1 Georgia, "Times New Roman", serif; color: var(--theme-muted, #77756d); opacity: .6; pointer-events: none; }
-.md-editor .md-quote-2 { padding-left: 88px; }
-.md-editor .md-quote-3 { padding-left: 124px; }
-.md-editor .md-code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; line-height: 1.75; background: var(--theme-field, #ece9e4); border-left: 2px solid var(--theme-line, #bdb8ad); padding-left: 10px; }
+.md-editor .md-edit .cm-line.md-quote-2 { padding-left: 88px; }
+.md-editor .md-edit .cm-line.md-quote-3 { padding-left: 124px; }
+.md-editor .md-edit .cm-line.md-code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; line-height: 1.75; background: var(--theme-field, #ece9e4); border-left: 2px solid var(--theme-line, #bdb8ad); padding-left: 10px; }
 .md-editor .md-fence { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; color: var(--theme-muted, #77756d); min-height: 12px; }
 .md-editor .md-strong { font-weight: 600; }
 .md-editor .md-em { font-style: italic; }
