@@ -23,7 +23,7 @@ try {for(const browserMotion of ['no-preference','reduce']) {
  assert.equal(state.motion.preset,reduced?'reduced':'full');
  await page.evaluate(()=>window.rhine.archive());
  await page.getByRole('button',{name:'系统设置',exact:true}).click();
- assert.equal(await page.locator('.settings-label').textContent(),'设置');
+ assert.equal(await page.getByRole('dialog',{name:'系统设置'}).isVisible(),true);
  assert.equal(await page.locator(`[data-action="motion-preset"][data-preset="${reduced?'reduced':'full'}"]`).getAttribute('aria-pressed'),'true');
  await page.locator('[data-action="motion-preset"][data-preset="full"]').click();
  await page.locator('.motion-advanced summary').click();

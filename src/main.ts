@@ -79,7 +79,7 @@ $("#stage").innerHTML = `
   <nav class="system-nav" aria-label="系统导航"><button class="entries-button" data-action="entries" aria-label="待办与日志" title="待办与日志"><svg class="entries-icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4.5" width="18" height="16"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4"/><path d="M8 13h.01M12 13h.01M16 13h.01M8 16.5h.01M12 16.5h.01M16 16.5h.01" stroke-width="2.2" stroke-linecap="round"/></svg></button>
     <button data-action="search"><span class="nav-glyph">⌕</span> ARCHIVE INDEX <span class="key">/</span></button>
     <button data-action="saved" aria-label="查看收藏档案" title="收藏档案">＋ SAVED <span id="saved-count">00</span></button>
-    <button class="settings-button" data-action="settings" aria-label="系统设置" title="系统设置"><span class="settings-glyph" aria-hidden="true">◷</span><span class="settings-label">设置</span></button>
+    <button class="settings-button" data-action="settings" aria-label="系统设置" title="系统设置"><span class="settings-glyph" aria-hidden="true">◷</span></button>
   </nav>
   <section id="boot" class="boot" aria-label="系统启动">
     <div class="access-text">ACCESS</div>

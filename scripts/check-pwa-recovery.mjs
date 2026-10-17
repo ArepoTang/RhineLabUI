@@ -29,16 +29,16 @@ try {
  const page=await context.newPage();page.on('pageerror',e=>report.errors.push(e.message));
  const ready=()=>page.waitForFunction(()=>window.rhine?.stats().ready&&document.documentElement.dataset.offlineReady==='true'&&navigator.serviceWorker.controller&&!document.querySelector('#loading'),null,{timeout:90000});
  const base='http://127.0.0.1:5192/';
- await page.goto(base);await ready();assert.equal(await page.locator('.settings-label').count(),0);
+ await page.goto(base);await ready();assert.equal(await page.locator('.settings-button').count(),1);
  await page.evaluate(()=>localStorage.setItem('rhine-saved','["X-001"]'));
  deployed=true;
  const cdp=await context.newCDPSession(page);await cdp.send('Network.clearBrowserCache');await cdp.detach();
  await page.reload();await ready();
  await page.waitForFunction(async()=>Boolean((await navigator.serviceWorker.getRegistration())?.waiting),null,{timeout:90000});
- assert.equal(await page.locator('.settings-label').count(),0);
+ assert.equal(await page.locator('.settings-button').count(),1);
  report.checks.push('clearing HTTP cache and reloading still serves the previous service-worker release');
  await page.goto(base+'update.html');await page.getByRole('button',{name:'更新并返回'}).click();
- await page.waitForURL(base);await ready();assert.equal(await page.locator('.settings-label').textContent(),'设置');
+ await page.waitForURL(base);await ready();assert.equal(await page.locator('.settings-button').count(),1);
  assert.ok((await page.evaluate(()=>caches.keys())).some(k=>k.endsWith(metadata.version)));
  assert.equal(await page.evaluate(()=>localStorage.getItem('rhine-saved')),'["X-001"]');
  assert.equal(await page.evaluate(()=>JSON.parse(localStorage.getItem('rhine-settings')).reduced),true);
@@ -49,7 +49,7 @@ try {
  assert.equal(new URL(page.url()).pathname,'/update.html');assert.equal(await page.locator('#update').isEnabled(),true);
  report.checks.push('failed recovery download reports failure and retains the previous release');broken=false;
  await page.goto(base);await ready();
- await context.setOffline(true);await page.reload();await ready();assert.equal(await page.locator('.settings-label').textContent(),'设置');
+ await context.setOffline(true);await page.reload();await ready();assert.equal(await page.locator('.settings-button').count(),1);
  report.checks.push('recovered release works after offline reload');await context.close();
  const fresh=await browser.newContext();const freshPage=await fresh.newPage();
  await freshPage.goto(base+'update.html');await freshPage.getByRole('button',{name:'更新并返回'}).click();await freshPage.waitForURL(base,{timeout:90000});
