@@ -215,6 +215,7 @@ test("编辑器：待办带日期、时间与删除；日志只有正文、没�
   assert.match(editing, /value="晨会"/);
   assert.match(editing, /value="09:30"/);
   assert.match(editing, />正文</);
+  assert.match(editing, /class="entry-preview markdown" id="entry-body-preview"[^>]*><p>正文<\/p>/, "待办正文也有预渲染预览（边写边看）");
   const fresh = editorMarkup(undefined, "2026-10-07");
   assert.ok(!fresh.includes("delete-entry"));
   assert.match(fresh, /value="2026-10-07"/);
