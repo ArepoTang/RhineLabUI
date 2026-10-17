@@ -47,7 +47,10 @@ for (const [rule, why] of [
   [/\.md-panes \{[^}]*grid-template-rows: 1fr/, "窗格行必须 1fr，否则输入框只有 rows 那么高"],
   [/\.md-pane-edit textarea \{[^}]*height: 100%/, "输入框填满窗格"],
   [/\.md-pane-preview \{[^}]*overflow-y: auto/, "预览窗格自己滚动"],
+  [/@media \(max-width: 899px\)[\s\S]*?\.md-editor\[data-view="edit"\] \.md-pane-preview \{ display: block/, "窄屏编辑时下方预览保持可见（边写边渲染）"],
 ]) {
   assert.match(css, rule, why);
 }
-console.log("Editor layout: 布局链 6 条 + 图标 3 条断言通过。");
+// 遮罩曾写死 top:0/height:100%，软键盘弹起时把下方的实时预览和保存按钮盖住。
+assert.ok(!/#stage \.editor-backdrop \{[^}]*height: 100%/.test(css), "编辑器遮罩不能写死高度，高度要跟可视区域走");
+console.log("Editor layout: 布局链 7 条 + 图标 3 条断言通过。");

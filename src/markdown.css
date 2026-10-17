@@ -28,10 +28,11 @@
 /* ---- 全屏编辑器 ---- */
 /* 尺寸、背景、无边框全交给 .entries-modal（日历已经验证过的那套全屏规则），
    这里只负责把编辑器撑满、让输入框吃掉剩余高度。 */
-/* 尺寸/背景仍与日历同源，但在这里也写一遍：编辑器铺满整屏是硬要求，不靠别人的规则成全。 */
+/* 尺寸/背景仍与日历同源，但宽高在这里也写一遍：编辑器本来就要铺满可视区域，不靠别人的规则成全。 */
 #stage .terminal-modal.editor-full { width: 100%; max-width: none; height: 100%; max-height: none; display: flex; flex-direction: column; }
-/* 手机布局会给遮罩留出上方一条、并限高（日历是有意留的）；编辑器要真铺满，显式重置。 */
-#stage .editor-backdrop { top: 0; height: 100%; padding: 0; align-items: stretch; justify-content: stretch; }
+/* 手机布局的遮罩会按 --modal-top / --modal-height 避开软键盘；这里只去掉内边距，
+   高度继续跟着可视区域走 —— 否则键盘弹起时下方的实时预览和保存按钮会被盖住。 */
+#stage .editor-backdrop { padding: 0; align-items: stretch; justify-content: stretch; }
 .editor-full .settings-intro { margin-bottom: 12px; }
 .editor-full .entry-actions { flex: none; padding: 14px 0 0; }
 
@@ -50,9 +51,14 @@
    否则浅色下是黑块、暗色下黑底黑图标直接看不见。 */
 .md-view svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.2; stroke-linecap: square; }
 
-/* 窄屏（手机）：一次只看一个窗格，「预览」按钮切换 */
+/* 窄屏（手机）：编辑时下方留一条实时预览（边写边渲染）；
+   「预览」按钮仍然可以把预览切成整屏，再按一次回到边写边看。 */
 .md-editor[data-view="edit"] .md-pane-preview { display: none; }
 .md-editor[data-view="preview"] .md-pane-edit { display: none; }
+@media (max-width: 899px) {
+  .md-editor[data-view="edit"] .md-panes { grid-template-rows: minmax(0, 1fr) minmax(0, 32%); }
+  .md-editor[data-view="edit"] .md-pane-preview { display: block; border-top: 1px solid var(--theme-line, #bdb8ad); padding-top: 10px; }
+}
 
 /* 宽屏：两栏并排，切换按钮就没有意义了 */
 @media (min-width: 900px) {

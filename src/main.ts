@@ -1053,7 +1053,10 @@ let previewTimer = 0;
 function paintMarkdownPreview(): void {
   const field = document.querySelector<HTMLTextAreaElement>("#entry-body-field");
   const preview = document.querySelector<HTMLElement>("#entry-body-preview");
-  if (field && preview) preview.innerHTML = renderMarkdown(field.value);
+  if (!field || !preview) return;
+  preview.innerHTML = renderMarkdown(field.value);
+  // 在文末追加时让预览跟上；改中间时不动滚动，免得预览乱跳。
+  if (field.selectionStart === field.value.length) preview.scrollTop = preview.scrollHeight;
 }
 
 document.addEventListener("input", (e) => {
