@@ -46,6 +46,8 @@ const heading = liveMarkdownSpans("## 标题");
 assert.deepEqual(hides(heading), [[0, 3]], "标题的 ## 藏起来");
 assert.ok(has(heading, "line", "md-h2"), "行上挂标题样式");
 assert.deepEqual(hides(liveMarkdownSpans("## 标题", [{ from: 3, to: 3 }])), [[0, 3]], "打完 ## 和空格后立即隐藏（光标在正文）");
+assert.deepEqual(hides(liveMarkdownSpans("## ", [{ from: 3, to: 3 }])), [[0, 2]], "只有标记时留一个空格，原生光标有落脚点");
+assert.deepEqual(hides(liveMarkdownSpans("> ", [{ from: 2, to: 2 }])), [[0, 1]], "空引用行同样留一个空格给光标");
 assert.deepEqual(hides(liveMarkdownSpans("## 标题", [{ from: 1, to: 1 }])), [], "光标压到 ## 上才露出源码");
 
 const strong = liveMarkdownSpans("**粗体**");

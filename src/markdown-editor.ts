@@ -98,7 +98,10 @@ export function liveMarkdownSpans(
       if (depth > 1) classes.push(`md-quote-${Math.min(depth, 3)}`);
       addLine(lineFrom, classes.join(" "));
       // 标记只在这一小段上才露出来；光标在后面的正文里时已经变成大引号。
-      if (!touched(lineFrom, at(quoteMark[0].length) - 1)) addHide(lineFrom, at(quoteMark[0].length));
+      const quoteEnd = at(quoteMark[0].length);
+      // 只有标记、还没有正文时留下最后那个空格，否则行里没有任何可见字符，原生光标会看不见。
+      const quoteHideTo = lineText.slice(quoteMark[0].length).trim() === "" ? quoteEnd - 1 : quoteEnd;
+      if (!touched(lineFrom, quoteEnd - 1)) addHide(lineFrom, quoteHideTo);
       inlineDecorations(lineText, lineFrom, addMark, addHide, touched);
       continue;
     }
@@ -155,7 +158,10 @@ export function liveMarkdownSpans(
     const heading = /^(#{1,6})\s+/.exec(lineText);
     if (heading) {
       addLine(lineFrom, `md-h${heading[1].length}`);
-      if (!touched(lineFrom, at(heading[0].length) - 1)) addHide(lineFrom, at(heading[0].length));
+      const headingEnd = at(heading[0].length);
+      // 只有标记、还没有正文时留下最后那个空格，给原生光标一个可站的位置。
+      const headingHideTo = lineText.slice(heading[0].length).trim() === "" ? headingEnd - 1 : headingEnd;
+      if (!touched(lineFrom, headingEnd - 1)) addHide(lineFrom, headingHideTo);
       inlineDecorations(lineText, lineFrom, addMark, addHide, touched);
       continue;
     }
